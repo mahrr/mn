@@ -91,10 +91,10 @@ namespace mn
 	// string
 	template<typename ... Args>
 	[[nodiscard]] inline static Str
-	strf(Str out, const char* format_str, const Args& ... args)
+	strf(Str out, const char* format_str, Args&& ... args)
 	{
 		fmt::memory_buffer buf;
-		fmt::format_to(buf, format_str, args...);
+		fmt::format_to(std::back_inserter(buf), format_str, std::forward<Args>(args)...);
 		str_block_push(out, Block{buf.data(), buf.size()});
 		return out;
 	}
@@ -102,50 +102,50 @@ namespace mn
 	// creates a new string with the given allocator containing the formatted string
 	template<typename ... Args>
 	[[nodiscard]] inline static Str
-	strf(Allocator allocator, const char* format_str, const Args& ... args)
+	strf(Allocator allocator, const char* format_str, Args&& ... args)
 	{
-		return strf(str_with_allocator(allocator), format_str, args...);
+		return strf(str_with_allocator(allocator), format_str, std::forward<Args>(args)...);
 	}
 
 	// creates a new string using the top/default allocator containing the formatted string
 	template<typename ... Args>
 	[[nodiscard]] inline static Str
-	strf(const char* format_str, const Args& ... args)
+	strf(const char* format_str, Args&& ... args)
 	{
-		return strf(str_new(), format_str, args...);
+		return strf(str_new(), format_str, std::forward<Args>(args)...);
 	}
 
 	// creates a new temporary string using the tmp allocator containing the formatted string
 	template<typename ... Args>
 	inline static Str
-	str_tmpf(const char* format_str, const Args& ... args)
+	str_tmpf(const char* format_str, Args&& ... args)
 	{
-		return strf(str_tmp(), format_str, args...);
+		return strf(str_tmp(), format_str, std::forward<Args>(args)...);
 	}
 
 	// prints the formatted string to the given stream
 	template<typename ... Args>
 	inline static size_t
-	print_to(Stream stream, const char* format_str, const Args& ... args)
+	print_to(Stream stream, const char* format_str, Args&& ... args)
 	{
 		fmt::memory_buffer buf;
-		fmt::format_to(buf, format_str, args...);
+		fmt::format_to(std::back_inserter(buf), format_str, std::forward<Args>(args)...);
 		return stream_write(stream, Block{buf.data(), buf.size()});
 	}
 
 	// prints the formatted string to the standard output stream
 	template<typename ... Args>
 	inline static size_t
-	print(const char* format_str, const Args& ... args)
+	print(const char* format_str, Args&& ... args)
 	{
-		return print_to(file_stdout(), format_str, args...);
+		return print_to(file_stdout(), format_str, std::forward<Args>(args)...);
 	}
 
 	// prints the formatted string to the standard error stream
 	template<typename ... Args>
 	inline static size_t
-	printerr(const char* format_str, const Args& ... args)
+	printerr(const char* format_str, Args&& ... args)
 	{
-		return print_to(file_stderr(), format_str, args...);
+		return print_to(file_stderr(), format_str, std::forward<Args>(args)...);
 	}
 }
