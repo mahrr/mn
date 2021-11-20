@@ -29,4 +29,12 @@ namespace mn
 	{
 		return kill(p.id, 0) == 0;
 	}
+
+	Memory_Info
+	process_memory_info(Process p)
+	{
+		Memory_Info res{-1, -1};
+		// TODO: implement later
+		return res;
+	}
 }
