@@ -35,7 +35,7 @@ namespace mn
 		int64_t current_memory_usage_in_bytes;
 	};
 
-	// returns the memory usage info of the given process
+	// returns the memory usage info of the calling process
 	MN_EXPORT Memory_Info
-	process_memory_info(Process p);
+	process_memory_info();
 }

@@ -32,7 +32,7 @@ namespace mn
 	}
 
 	Memory_Info
-	process_memory_info(Process p)
+	process_memory_info()
 	{
 		Memory_Info res{-1, -1};
 
@@ -40,14 +40,14 @@ namespace mn
 		getrusage(RUSAGE_SELF, &r);
 		res.peak_memory_usage_in_bytes = (size_t)r.ru_maxrss * 1024ULL;
 
-		int64_t rss = 0;
+		long long rss = 0;
 		if (auto f = fopen("/proc/self/statm", "r"))
 		{
 			mn_defer(fclose(f));
 
 			if (fscanf(f, "%*s%lld", &rss) == 1)
 			{
-				res.current_memory_usage_in_bytes = rss * (int64_t)sysconf(_SC_PAGESIZE);
+				res.current_memory_usage_in_bytes = (int64_t)rss * (int64_t)sysconf(_SC_PAGESIZE);
 			}
 		}
 		return res;

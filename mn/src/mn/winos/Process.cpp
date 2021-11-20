@@ -90,17 +90,12 @@ namespace mn
 	}
 
 	Memory_Info
-	process_memory_info(Process p)
+	process_memory_info()
 	{
 		Memory_Info res{-1, -1};
 
-		auto handle = OpenProcess(SYNCHRONIZE, false, DWORD(p.id));
-		if (handle == INVALID_HANDLE_VALUE)
-			return res;
-		mn_defer(CloseHandle(handle));
-
 		PROCESS_MEMORY_COUNTERS info{};
-		GetProcessMemoryInfo(handle, &info, sizeof(info));
+		GetProcessMemoryInfo(GetCurrentProcess(), &info, sizeof(info));
 		res.peak_memory_usage_in_bytes = (int64_t)info.PeakWorkingSetSize;
 		res.current_memory_usage_in_bytes = (int64_t)info.WorkingSetSize;
 
