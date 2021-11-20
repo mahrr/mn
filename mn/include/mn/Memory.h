@@ -6,12 +6,14 @@
 #include "mn/memory/Stack.h"
 #include "mn/memory/Arena.h"
 #include "mn/memory/Buddy.h"
+#include "mn/Process.h"
 #include "mn/Context.h"
 
 #include <stdint.h>
 #include <utility>
 #include <new>
 #include <string.h>
+#include <stdio.h>
 
 namespace mn
 {
@@ -192,4 +194,35 @@ namespace mn
 		::memcpy(self.ptr, other.ptr, other.size);
 		return self;
 	}
+
+	// leak spy, it's useful to check if some scope/part of the code is leaking
+	struct Leak_Spy
+	{
+		Memory_Info start_mem_info;
+		const char* name = nullptr;
+
+		Leak_Spy(const char* name_ = nullptr)
+			:start_mem_info(process_memory_info()),
+			 name(name_)
+		{}
+
+		Leak_Spy(const Leak_Spy&) = delete;
+		Leak_Spy(Leak_Spy&&) = delete;
+
+		Leak_Spy operator=(const Leak_Spy&) = delete;
+		Leak_Spy operator=(Leak_Spy&&) = delete;
+
+		~Leak_Spy()
+		{
+			auto end_mem_info = process_memory_info();
+			auto diff = (long long)(end_mem_info.current_memory_usage_in_bytes - start_mem_info.current_memory_usage_in_bytes);
+			::fprintf(stderr, "%lld\n", diff);
+			if (diff != 0)
+			{
+				if (name != nullptr)
+					::fprintf(stderr, "scope '%s' ", name);
+				::fprintf(stderr, "diff %lld bytes", diff);
+			}
+		}
+	};
 }

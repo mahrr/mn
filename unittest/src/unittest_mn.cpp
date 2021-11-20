@@ -1398,3 +1398,17 @@ TEST_CASE("config folder")
 	auto config = mn::folder_config(mn::memory::tmp());
 	mn::log_info("{}/file.txt", config);
 }
+
+TEST_CASE("test leak spy")
+{
+	{
+		mn::Leak_Spy spy{"unittest leak"};
+		mn::alloc(10 * 1024, 1);
+	}
+
+	{
+		mn::Leak_Spy spy{"unittest correct"};
+		auto block = mn::alloc(10 * 1024, 1);
+		mn::free(block);
+	}
+}
