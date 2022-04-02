@@ -618,13 +618,7 @@ TEST_CASE("Rune")
 	CHECK(mn::rune_upper('A') == 'A');
 	CHECK(mn::rune_lower('A') == 'a');
 	CHECK(mn::rune_lower('a') == 'a');
-	#if defined(OS_WINDOWS)
-		CHECK(mn::rune_lower(U'\u0645') == U'\u0645');
-	#elif defined(OS_LINUX)
-		CHECK(mn::rune_lower('U+0645') == 'U+0645');
-	#elif defined(OS_MACOS)
-		CHECK(mn::rune_lower('U+0645') == 'U+0645');
-	#endif
+	CHECK(mn::rune_lower(U'\u0645') == U'\u0645');
 }
 
 TEST_CASE("Task")
@@ -1405,7 +1399,7 @@ TEST_CASE("str push blobs")
 {
 	auto str1 = mn::str_tmp("hello ");
 	mn::str_push(str1, "w\0rld"_mnstr);
-	CHECK(str1 == mn::Str {nullptr, "hello w\0rld", 11, 11});
+	CHECK(str1 == "hello w\0rld"_mnstr);
 }
 
 TEST_CASE("fmt str with null byte")
