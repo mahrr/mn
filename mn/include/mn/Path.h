@@ -305,7 +305,7 @@ namespace mn
 		auto normal_path = path_normalize(str_clone(path, memory::tmp()));
 		auto folders = str_split(normal_path, "/", true, memory::tmp());
 
-		auto folder_to_make = str_tmp();
+		auto folder_to_make = str_tmp(str_prefix(path, "/")? "/" : nullptr);
 		for (const auto& folder : folders)
 		{
 			folder_to_make = path_join(folder_to_make, folder);
