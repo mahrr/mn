@@ -204,6 +204,7 @@ namespace mn
 					return false;
 			}
 		}
+		return true;
 	}
 
 	// signals a condition variable waiter
