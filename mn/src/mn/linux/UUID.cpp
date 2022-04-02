@@ -10,7 +10,7 @@ namespace mn
 		size_t s = 0;
 		while (s < buffer.size)
 		{
-			s += getrandom(buffer.ptr, buffer.size - s, GRND_RANDOM);
+			s += getrandom(buffer.ptr, buffer.size - s, 0);
 		}
 	}
 
