@@ -432,16 +432,4 @@ namespace mn
 
 		return i == files.count;
 	}
-
-	Str
-	folder_tmp(Allocator allocator)
-	{
-		return str_from_c(getenv("TMPDIR"), allocator);
-	}
-
-	Str
-	folder_config(Allocator allocator)
-	{
-		return str_from_c("~/Library/Preferences", allocator);
-	}
 }

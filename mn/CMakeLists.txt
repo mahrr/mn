@@ -110,9 +110,11 @@ elseif(UNIX AND NOT APPLE)
 		src/mn/linux/UUID.cpp
 	)
 elseif(APPLE)
+	enable_language(OBJCXX)
 	set(SOURCE_FILES ${SOURCE_FILES}
 		src/mn/mac/Debug.cpp
 		src/mn/mac/Path.cpp
+		src/mn/mac/Path.mm
 		src/mn/mac/File.cpp
 		src/mn/mac/Thread.cpp
 		src/mn/mac/Virtual_Memory.cpp
@@ -158,6 +160,11 @@ target_link_libraries(mn
 	PUBLIC
 		fmt::fmt
 )
+
+if(APPLE)
+	find_library(FOUNDATION_LIBRARY Foundation)
+	target_link_libraries(mn PRIVATE ${FOUNDATION_LIBRARY})
+endif()
 
 # make it reflect the same structure as the one on disk
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${HEADER_FILES})
