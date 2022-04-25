@@ -284,47 +284,23 @@ namespace mn
 	fabric_workers_count(Fabric self);
 
 	// schedules the given callable into the given fabric
-	template<typename TFunc>
+	template<typename TFunc, typename ... TArgs>
 	inline static void
-	go(Fabric f, TFunc&& fn)
+	go(Fabric f, TFunc&& fn, TArgs&& ... args)
 	{
 		Fabric_Task entry{};
-		entry.as_oneshot.task = Task<void()>::make(std::forward<TFunc>(fn));
+		entry.as_oneshot.task = Task<void()>::make([=]() mutable { fn(args...); });
 		fabric_task_do(f, entry);
 	}
 
 	// schedules the given callable into the given worker
-	template<typename TFunc>
+	template<typename TFunc, typename ... TArgs>
 	inline static void
-	go(Worker worker, TFunc&& fn)
+	go(Worker worker, TFunc&& fn, TArgs&& ... args)
 	{
 		Fabric_Task entry{};
-		entry.as_oneshot.task = Task<void()>::make(std::forward<TFunc>(fn));
+		entry.as_oneshot.task = Task<void()>::make([=]() mutable { fn(args...); });
 		worker_task_do(worker, entry);
-	}
-
-	// tries to schedule the given callable into the local worker/fabric
-	// if it doesn't find any it will panic
-	template<typename TFunc>
-	inline static void
-	go(TFunc&& fn)
-	{
-		if (Fabric f = fabric_local())
-		{
-			Fabric_Task entry{};
-			entry.as_oneshot.task = Task<void()>::make(std::forward<TFunc>(fn));
-			fabric_task_do(f, entry);
-		}
-		else if (Worker w = worker_local())
-		{
-			Fabric_Task entry{};
-			entry.as_oneshot.task = Task<void()>::make(std::forward<TFunc>(fn));
-			worker_task_do(w, entry);
-		}
-		else
-		{
-			panic("can't find any local fabric or worker");
-		}
 	}
 
 	// a message passing primitive used to communicate between fabric tasks

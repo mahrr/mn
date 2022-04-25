@@ -947,7 +947,7 @@ TEST_CASE("coroutine launching coroutines")
 	g.add(1);
 	mn::go(f, [&g, &sum, c]{
 
-		mn::go([&g, &sum, c]{
+		mn::go(mn::fabric_local(), [&g, &sum, c]{
 			for (auto num : c)
 				sum += num;
 			g.done();

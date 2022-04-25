@@ -61,7 +61,7 @@ main()
 		auto client = mn::ipc::sputnik_accept(server, { 10000 });
 		if (client)
 		{
-			mn::go(f, [client] { serve_client_msg(client); });
+			mn::go(f, serve_client_msg, client);
 		}
 		else
 		{
