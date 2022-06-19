@@ -1515,3 +1515,15 @@ TEST_CASE("folder_make_recursive")
 		CHECK(mn::path_is_folder("/tmp/whatever/root/a/"));
 	#endif
 }
+
+ TEST_CASE("empty arena checkpoint")
+{
+	auto arena = mn::allocator_arena_new();
+	mn_defer { mn::allocator_free(arena); };
+
+	auto checkpoint = mn::allocator_arena_checkpoint(arena);
+
+	mn::alloc_from(arena, 1024, alignof(char));
+
+	mn::allocator_arena_restore(arena, checkpoint);
+}

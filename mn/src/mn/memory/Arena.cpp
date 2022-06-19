@@ -124,7 +124,8 @@ namespace mn::memory
 	{
 		State s{};
 		s.head = this->head;
-		s.alloc_head = this->head->alloc_head;
+		if (this->head)
+			s.alloc_head = this->head->alloc_head;
 		s.total_mem = this->total_mem;
 		s.used_mem = this->used_mem;
 		s.highwater_mem = this->highwater_mem;
@@ -142,7 +143,8 @@ namespace mn::memory
 		}
 		mn_assert(this->head == s.head);
 		this->head = s.head;
-		this->head->alloc_head = s.alloc_head;
+		if (this->head)
+			this->head->alloc_head = s.alloc_head;
 		this->total_mem = s.total_mem;
 		this->used_mem = s.used_mem;
 	}

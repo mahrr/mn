@@ -34,7 +34,6 @@ namespace mn::memory
 		};
 
 		Interface* meta;
-		State state;
 		Node* head;
 		// contains the block size in bytes, this is the granularity of allocation/free
 		size_t block_size;
