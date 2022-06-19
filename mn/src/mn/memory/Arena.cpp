@@ -26,6 +26,9 @@ namespace mn::memory
 	Block
 	Arena::alloc(size_t size, uint8_t)
 	{
+		if (size == 0)
+			return {};
+
 		grow(size);
 
 		uint8_t* ptr = this->head->alloc_head;

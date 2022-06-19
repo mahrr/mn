@@ -29,6 +29,9 @@ namespace mn::memory
 	Block
 	Fast_Leak::alloc(size_t size, uint8_t)
 	{
+		if (size == 0)
+			return {};
+
 		Block res {::malloc(size), size};
 		if (res.ptr == nullptr)
 			mn::panic("system out of memory");

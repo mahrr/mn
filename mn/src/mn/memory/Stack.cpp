@@ -21,6 +21,9 @@ namespace mn::memory
 	Block
 	Stack::alloc(size_t size, uint8_t)
 	{
+		if (size == 0)
+			return {};
+
 		ptrdiff_t used_memory = this->alloc_head - (uint8_t*)this->memory.ptr;
 		[[maybe_unused]] size_t free_memory = this->memory.size - used_memory;
 		if (free_memory < size)

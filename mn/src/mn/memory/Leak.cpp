@@ -26,6 +26,9 @@ namespace mn::memory
 	Block
 	Leak::alloc(size_t size, uint8_t)
 	{
+		if (size == 0)
+			return {};
+
 		Node* ptr = (Node*)::malloc(size + sizeof(Node));
 
 		if (ptr == nullptr)

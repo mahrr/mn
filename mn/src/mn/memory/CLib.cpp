@@ -9,6 +9,9 @@ namespace mn::memory
 	Block
 	CLib::alloc(size_t size, uint8_t)
 	{
+		if (size == 0)
+			return {};
+
 		Block res{};
 		res.ptr = ::malloc(size);
 		if (res.ptr == nullptr && size > 0)
