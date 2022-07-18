@@ -414,6 +414,9 @@ namespace mn::json
 	Result<Value>
 	parse(const Str& content)
 	{
+		if (content.count == 0)
+			return Err {"Unexpected end of JSON input"};
+
 		Lexer lexer;
 		lexer.it = content.ptr;
 		lexer.c	= *lexer.it;

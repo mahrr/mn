@@ -1231,6 +1231,13 @@ TEST_CASE("json support")
 	mn::json::value_free(v);
 }
 
+TEST_CASE("json null string")
+{
+	const char* json = nullptr;
+	auto [v, err] = mn::json::parse(json);
+	CHECK(err == true);
+}
+
 inline static mn::Regex
 compile(const char* str)
 {
@@ -1516,7 +1523,7 @@ TEST_CASE("folder_make_recursive")
 	#endif
 }
 
- TEST_CASE("empty arena checkpoint")
+TEST_CASE("empty arena checkpoint")
 {
 	auto arena = mn::allocator_arena_new();
 	mn_defer { mn::allocator_free(arena); };
