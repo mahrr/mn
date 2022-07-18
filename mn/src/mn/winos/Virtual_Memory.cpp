@@ -22,6 +22,6 @@ namespace mn
 	virtual_free(Block block)
 	{
 		[[maybe_unused]] auto result = VirtualFree(block.ptr, 0, MEM_RELEASE);
-		mn_assert(result != NULL);
+		mn_assert(result != FALSE);
 	}
 }
