@@ -41,6 +41,27 @@ namespace mn
 	};
 	thread_local Worker LOCAL_WORKER = nullptr;
 
+	struct IFabric_Timer
+	{
+		Task<void()> task;
+		uint32_t milliseconds;
+		uint32_t remaining;
+		bool is_single_shot;
+		bool free_after_single_shot;
+		bool stopped;
+		bool atomic_freed;
+		std::atomic<int> running_instances;
+	};
+
+	struct IFabric_Timer_System
+	{
+		Mutex mtx;
+		Pool timers_pool;
+		Map<int, IFabric_Timer*> timers;
+		std::atomic<int> atomic_timer_jobs_count;
+		std::atomic<int> atomic_timer_id_generator;
+	};
+
 	struct IFabric
 	{
 		Fabric_Settings settings;
@@ -57,6 +78,8 @@ namespace mn
 		std::atomic<size_t> atomic_available_jobs;
 		size_t next_worker;
 		size_t worker_id_generator;
+
+		IFabric_Timer_System timer_system;
 
 		Thread sysmon;
 	};
@@ -100,11 +123,27 @@ namespace mn
 				self->atomic_job_start_time_in_ms.store(time_in_millis());
 				self->atomic_disable_block_timing = false;
 				self->atomic_current_job_kind.store(job.kind);
-				fabric_task_run(job);
+				if (job.kind == Fabric_Task::KIND_TIMER)
+				{
+					job.as_timer->task();
+				}
+				else
+				{
+					fabric_task_run(job);
+				}
 				self->atomic_disable_block_timing = true;
 				self->atomic_job_start_time_in_ms.store(0);
 				self->atomic_current_job_kind.store(Fabric_Task::KIND_ONESHOT);
-				fabric_task_free(job);
+				if (job.kind == Fabric_Task::KIND_TIMER)
+				{
+					// we don't free timer tasks because they are owned by fabric itself
+					[[maybe_unused]] auto count = job.as_timer->running_instances.fetch_sub(1);
+					mn_assert(count > 0);
+				}
+				else
+				{
+					fabric_task_free(job);
+				}
 				memory::tmp()->clear_all();
 				if (self->fabric)
 				{
@@ -391,6 +430,12 @@ namespace mn
 		if (timeslice == 0)
 			timeslice = 1;
 
+		uint32_t timer_min_sleep_in_ms = 0;
+		auto timer_prev = time_in_millis();
+
+		auto removed_timers = buf_new<int>();
+		mn_defer{buf_free(removed_timers);};
+
 		while(true)
 		{
 			// dispose of dead workers before holding the mutex
@@ -412,13 +457,15 @@ namespace mn
 				mn_defer{mutex_unlock(self->mtx);};
 
 				if (self->atomic_available_jobs.load() == 0 &&
-					self->sleepy_side_workers.count == 0)
+					self->sleepy_side_workers.count == 0 &&
+					self->timer_system.atomic_timer_jobs_count.load() == 0)
 				{
 					slept_on_cond_var = true;
 					cond_var_wait(self->cv, self->mtx, [&]{
 						return self->atomic_available_jobs.load() > 0 ||
 							self->is_running == false ||
-							self->sleepy_side_workers.count > 0;
+							self->sleepy_side_workers.count > 0 ||
+							self->timer_system.atomic_timer_jobs_count.load();
 					});
 				}
 
@@ -428,7 +475,86 @@ namespace mn
 
 			// SYSMON rest station, sysmon needs to sleep for some time, he does a lot of work, he deserves it
 			if (slept_on_cond_var == false)
-				thread_sleep(timeslice);
+			{
+				auto timer_now = time_in_millis();
+				auto timer_delta_in_ms = timer_now - timer_prev;
+				if (timer_delta_in_ms > timer_min_sleep_in_ms)
+					timer_min_sleep_in_ms = 0;
+				else
+					timer_min_sleep_in_ms -= (uint32_t)timer_delta_in_ms;
+
+				auto sleep_time_in_ms = timeslice < timer_min_sleep_in_ms ? timeslice : timer_min_sleep_in_ms;
+
+				if (sleep_time_in_ms > 0)
+					thread_sleep(sleep_time_in_ms);
+			}
+
+			{
+				mutex_lock(self->timer_system.mtx);
+				mn_defer{mutex_unlock(self->timer_system.mtx);};
+
+				auto timer_now = time_in_millis();
+				auto timer_delta_in_ms = timer_now - timer_prev;
+				timer_prev = timer_now;
+
+				buf_clear(removed_timers);
+				for (auto& [key, timer]: self->timer_system.timers)
+				{
+					if (timer->atomic_freed && timer->running_instances.load() == 0)
+					{
+						task_free(timer->task);
+						--self->timer_system.atomic_timer_id_generator;
+						buf_push(removed_timers, key);
+					}
+				}
+
+				for (auto t: removed_timers)
+				{
+					map_remove(self->timer_system.timers, t);
+				}
+
+				timer_min_sleep_in_ms = UINT32_MAX;
+				for (auto& [_, timer]: self->timer_system.timers)
+				{
+					if (timer->stopped)
+					{
+						timer->remaining = timer->milliseconds;
+						continue;
+					}
+
+					if (timer_delta_in_ms > timer->remaining)
+					{
+						timer->remaining = 0;
+					}
+					else
+					{
+						timer->remaining -= (uint32_t)timer_delta_in_ms;
+					}
+
+					if (timer->remaining == 0)
+					{
+						timer->running_instances.fetch_add(1);
+
+						auto next_worker = self->next_worker++;
+						next_worker %= self->workers.count;
+
+						auto worker = self->workers[next_worker];
+
+						Fabric_Task task{};
+						task.kind = Fabric_Task::KIND_TIMER;
+						task.as_timer = timer;
+						worker_task_do(worker, task);
+						timer->remaining = timer->milliseconds;
+
+						if (timer->is_single_shot)
+							timer->stopped = true;
+						if (timer->free_after_single_shot)
+							timer->atomic_freed = true;
+					}
+
+					timer_min_sleep_in_ms = timer_min_sleep_in_ms > timer->remaining ? timer->remaining : timer_min_sleep_in_ms;
+				}
+			}
 
 			// get the max/min jobs
 			size_t busiest_worker = 0;
@@ -518,6 +644,87 @@ namespace mn
 
 
 	// API
+	Fabric_Timer
+	fabric_timer_new(Fabric fabric, const Task<void()>& task, uint32_t milliseconds, bool single_shot, bool free_after_single_shot)
+	{
+		Fabric_Timer self{};
+		self.fabric = fabric;
+		self.id = ++fabric->timer_system.atomic_timer_id_generator;
+
+		{
+			mutex_lock(fabric->timer_system.mtx);
+
+			auto timer = (IFabric_Timer*)pool_get(fabric->timer_system.timers_pool);
+			::memset((char*)timer, 0, sizeof(*timer));
+			timer->task = task;
+			timer->milliseconds = milliseconds;
+			timer->remaining = timer->milliseconds;
+			timer->is_single_shot = single_shot;
+			timer->free_after_single_shot = free_after_single_shot;
+
+			map_insert(fabric->timer_system.timers, self.id, timer);
+			++fabric->timer_system.atomic_timer_jobs_count;
+
+			mutex_unlock(fabric->timer_system.mtx);
+
+			cond_var_notify(fabric->cv);
+		}
+
+		return self;
+	}
+
+	void
+	fabric_timer_free(Fabric_Timer& self)
+	{
+		auto fabric = self.fabric;
+		mutex_lock(fabric->timer_system.mtx);
+		auto it = map_lookup(fabric->timer_system.timers, self.id);
+		it->value->atomic_freed = true;
+		mutex_unlock(fabric->timer_system.mtx);
+	}
+
+	void
+	fabric_timer_start(Fabric_Timer& self)
+	{
+		auto fabric = self.fabric;
+		mutex_lock(fabric->timer_system.mtx);
+		auto it = map_lookup(fabric->timer_system.timers, self.id);
+		it->value->stopped = false;
+		it->value->remaining = it->value->milliseconds;
+		mutex_unlock(fabric->timer_system.mtx);
+	}
+
+	void
+	fabric_timer_stop(Fabric_Timer& self)
+	{
+		auto fabric = self.fabric;
+		mutex_lock(fabric->timer_system.mtx);
+		auto it = map_lookup(fabric->timer_system.timers, self.id);
+		it->value->stopped = true;
+		mutex_unlock(fabric->timer_system.mtx);
+	}
+
+	bool
+	fabric_timer_is_single_shot(Fabric_Timer& self)
+	{
+		auto fabric = self.fabric;
+		mutex_lock(fabric->timer_system.mtx);
+		auto it = map_lookup(fabric->timer_system.timers, self.id);
+		auto res = it->value->is_single_shot;
+		mutex_unlock(fabric->timer_system.mtx);
+		return res;
+	}
+
+	void
+	fabric_timer_set_single_shot(Fabric_Timer& self, bool is_single_shot)
+	{
+		auto fabric = self.fabric;
+		mutex_lock(fabric->timer_system.mtx);
+		auto it = map_lookup(fabric->timer_system.timers, self.id);
+		it->value->is_single_shot = is_single_shot;
+		mutex_unlock(fabric->timer_system.mtx);
+	}
+
 	Worker
 	worker_new(const char* name)
 	{
@@ -626,6 +833,9 @@ namespace mn
 		self->next_worker = 0;
 		self->worker_id_generator = 0;
 
+		self->timer_system.mtx = mn_mutex_new_with_srcloc("fabric timer system");
+		self->timer_system.timers_pool = pool_new(sizeof(IFabric_Timer), 128);
+
 		for (size_t i = 0; i < self->workers.count; ++i)
 		{
 			self->workers[i] = _worker_new(
@@ -681,6 +891,12 @@ namespace mn
 		str_free(self->sysmon_name);
 		task_free(self->settings.after_each_job);
 		task_free(self->settings.on_worker_start);
+
+		mutex_free(self->timer_system.mtx);
+		for (auto& [_, timer]: self->timer_system.timers)
+			task_free(timer->task);
+		map_free(self->timer_system.timers);
+		pool_free(self->timer_system.timers_pool);
 		free(self);
 	}
 

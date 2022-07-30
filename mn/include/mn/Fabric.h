@@ -46,6 +46,41 @@ namespace mn
 		Compute_Dims tile_size;
 	};
 
+	// fabric is a job queue system with multiple workers which it uses to execute jobs effieciently
+	typedef struct IFabric* Fabric;
+
+	struct Fabric_Timer
+	{
+		Fabric fabric;
+		int id;
+	};
+
+	MN_EXPORT Fabric_Timer
+	fabric_timer_new(Fabric fabric, const Task<void()>& task, uint32_t milliseconds, bool single_shot, bool free_after_single_shot);
+
+	MN_EXPORT void
+	fabric_timer_free(Fabric_Timer& self);
+
+	inline static void
+	destruct(Fabric_Timer& self)
+	{
+		fabric_timer_free(self);
+	}
+
+	MN_EXPORT void
+	fabric_timer_start(Fabric_Timer& self);
+
+	MN_EXPORT void
+	fabric_timer_stop(Fabric_Timer& self);
+
+	MN_EXPORT bool
+	fabric_timer_is_single_shot(Fabric_Timer& self);
+
+	MN_EXPORT void
+	fabric_timer_set_single_shot(Fabric_Timer& self, bool is_single_shot);
+
+	struct IFabric_Timer;
+
 	// represents a single task in the fabric's worker task queue
 	struct Fabric_Task
 	{
@@ -55,6 +90,8 @@ namespace mn
 			KIND_ONESHOT,
 			// a compute task, usually invoked via compute function
 			KIND_COMPUTE,
+			// a timer task, usually invoked via timer function
+			KIND_TIMER,
 		};
 
 		KIND kind;
@@ -71,6 +108,8 @@ namespace mn
 				Compute_Args args;
 				Waitgroup wg;
 			} as_compute;
+
+			IFabric_Timer* as_timer;
 		};
 	};
 
@@ -88,6 +127,7 @@ namespace mn
 			if (self.as_compute.wg) waitgroup_done(self.as_compute.wg);
 			break;
 		default:
+			mn_unreachable();
 			break;
 		}
 	}
@@ -105,6 +145,7 @@ namespace mn
 			task_free(self.as_compute.task);
 			break;
 		default:
+			mn_unreachable();
 			break;
 		}
 	}
@@ -212,9 +253,6 @@ namespace mn
 	local_worker_index();
 
 
-	// fabric is a job queue system with multiple workers which it uses to execute jobs effieciently
-	typedef struct IFabric* Fabric;
-
 	// fabric construction settings, which is used to customize fabric behavior on creation
 	struct Fabric_Settings
 	{
@@ -301,6 +339,35 @@ namespace mn
 		Fabric_Task entry{};
 		entry.as_oneshot.task = Task<void()>::make([=]() mutable { fn(args...); });
 		worker_task_do(worker, entry);
+	}
+
+	// schedules the given callable to run periodically every n milliseconds into the given fabric
+	template<typename TFunc, typename ... TArgs>
+	inline static Fabric_Timer
+	go_timer(Fabric f, uint32_t milliseconds, bool single_shot, TFunc&& fn, TArgs&& ... args)
+	{
+		auto res = fabric_timer_new(
+			f,
+			Task<void()>::make([=]() mutable { fn(args...); }),
+			milliseconds,
+			single_shot,
+			false
+		);
+		return res;
+	}
+
+	// schedules the given callable to run a single time after n milliseconds
+	template<typename TFunc, typename ... TArgs>
+	inline static void
+	go_after(Fabric f, uint32_t milliseconds, TFunc&& fn, TArgs&& ... args)
+	{
+		fabric_timer_new(
+			f,
+			Task<void()>::make([=]() mutable { fn(args...); }),
+			milliseconds,
+			true,
+			true
+		);
 	}
 
 	// a message passing primitive used to communicate between fabric tasks

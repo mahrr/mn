@@ -1033,6 +1033,103 @@ TEST_CASE("buddy")
 	mn::allocator_free(buddy);
 }
 
+TEST_CASE("fabric simple timer")
+{
+	mn::Fabric_Settings settings{};
+	settings.workers_count = 3;
+	auto f = mn::fabric_new(settings);
+
+	std::atomic<int> executed = 0;
+	auto timer = mn::go_timer(f, 100, false, [&]{
+		mn::log_info("timer {}", mn::time_in_millis());
+		++executed;
+	});
+
+	mn::thread_sleep(250);
+	mn::log_info("simple timer executed {}", executed);
+
+	mn::fabric_timer_stop(timer);
+	mn::log_info("timer stopped");
+	mn::thread_sleep(250);
+	mn::log_info("simple timer executed {}", executed);
+
+	mn::fabric_timer_start(timer);
+	mn::log_info("timer started");
+	mn::thread_sleep(250);
+	mn::log_info("simple timer executed {}", executed);
+
+	mn::fabric_timer_free(timer);
+	mn::log_info("timer freed");
+	mn::thread_sleep(250);
+	mn::log_info("simple timer executed {}", executed);
+
+	mn::fabric_free(f);
+}
+
+TEST_CASE("fabric single shot timer")
+{
+	mn::Fabric_Settings settings{};
+	settings.workers_count = 3;
+	auto f = mn::fabric_new(settings);
+
+	std::atomic<int> executed = 0;
+	auto timer = mn::go_timer(f, 100, true, [&]{
+		mn::log_info("single shot timer {}", mn::time_in_millis());
+		++executed;
+	});
+
+	for (size_t i = 0; i < 10; ++i)
+	{
+		mn::fabric_timer_start(timer);
+		mn::thread_sleep(50);
+	}
+	mn::thread_sleep(150);
+	mn::log_info("single shot timer executed {}", executed);
+
+	mn::fabric_free(f);
+}
+
+TEST_CASE("fabric go after timer")
+{
+	mn::Fabric_Settings settings{};
+	settings.workers_count = 3;
+	settings.external_blocking_threshold_in_ms = 1000;
+	settings.coop_blocking_threshold_in_ms = 1000;
+	auto f = mn::fabric_new(settings);
+
+	std::atomic<int> executed = 0;
+	mn::go_after(f, 100, [&]{
+		mn::log_info("go after executed");
+		++executed;
+	});
+	mn::thread_sleep(300);
+	mn::log_info("go after timer executed {}", executed);
+
+	mn::fabric_free(f);
+}
+
+TEST_CASE("fabric stress timer")
+{
+	mn::Fabric_Settings settings{};
+	settings.workers_count = 3;
+	auto f = mn::fabric_new(settings);
+
+	std::atomic<int> executed = 0;
+	for (size_t i = 0; i < 5000; ++i)
+	{
+		mn::go_timer(f, 100, false, [&]{
+			++executed;
+		});
+	}
+
+	mn::thread_sleep(1000);
+	mn::fabric_free(f);
+
+	CHECK(executed >= 45000);
+	CHECK(executed <= 50000);
+	mn::log_info("executed {}", executed.load());
+}
+
 TEST_CASE("handle table generation check")
 {
 	auto table = mn::handle_table_new<int>();
