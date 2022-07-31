@@ -144,6 +144,10 @@ namespace mn
 		case Fabric_Task::KIND_COMPUTE:
 			task_free(self.as_compute.task);
 			break;
+		case Fabric_Task::KIND_TIMER:
+			// Fabric_Task is just a wrapper over IFabric_Timer
+			// it's owned by sysmon so we don't free it
+			break;
 		default:
 			mn_unreachable();
 			break;
