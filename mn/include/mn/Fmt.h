@@ -1,15 +1,15 @@
 #pragma once
 
-#include <fmt/format.h>
-#include <fmt/ostream.h>
-#include <fmt/chrono.h>
+#include <fmt/core.h>
 
 #include <string_view>
+#include <iterator>
 
 #include "mn/Str.h"
 #include "mn/Buf.h"
 #include "mn/Map.h"
 #include "mn/File.h"
+#include "mn/Result.h"
 
 namespace fmt
 {
@@ -86,6 +86,122 @@ namespace fmt
 			return ctx.out();
 		}
 	};
+
+	template<>
+	struct formatter<mn::Err>
+	{
+		template<typename ParseContext>
+		constexpr auto
+		parse(ParseContext& ctx)
+		{
+			return ctx.begin();
+		}
+
+		template<typename FormatContext>
+		auto
+		format(const mn::Err& err, FormatContext& ctx)
+		{
+			return format_to(ctx.out(), "{}", err.msg);
+		}
+	};
+}
+
+namespace mn
+{
+	struct _Str_Back_Insert_Iterator
+	{
+		using iterator_category = std::output_iterator_tag;
+		Str* str;
+
+		_Str_Back_Insert_Iterator(Str& s)
+			: str(&s)
+		{}
+
+		_Str_Back_Insert_Iterator&
+		operator=(char v)
+		{
+			str_push(*str, v);
+			return *this;
+		}
+
+		_Str_Back_Insert_Iterator&
+		operator*()
+		{
+			return *this;
+		}
+
+		_Str_Back_Insert_Iterator&
+		operator++()
+		{
+			return *this;
+		}
+
+		_Str_Back_Insert_Iterator
+		operator++(int)
+		{
+			return *this;
+		}
+	};
+
+	struct _Stream_Back_Insert_Iterator
+	{
+		using iterator_category = std::output_iterator_tag;
+		Stream stream;
+		size_t written_bytes;
+
+		_Stream_Back_Insert_Iterator(Stream s)
+			: stream(s),
+			  written_bytes(0)
+		{}
+
+		_Stream_Back_Insert_Iterator&
+		operator=(char v)
+		{
+			written_bytes += stream_write(stream, Block{ &v, sizeof(v) });
+			return *this;
+		}
+
+		_Stream_Back_Insert_Iterator&
+		operator*()
+		{
+			return *this;
+		}
+
+		_Stream_Back_Insert_Iterator&
+		operator++()
+		{
+			return *this;
+		}
+
+		_Stream_Back_Insert_Iterator
+		operator++(int)
+		{
+			return *this;
+		}
+	};
+}
+
+namespace std
+{
+	template<>
+	struct iterator_traits<mn::_Str_Back_Insert_Iterator>
+	{
+		typedef ptrdiff_t difference_type;
+		typedef char value_type;
+		typedef char* pointer;
+		typedef char& reference;
+		typedef std::output_iterator_tag iterator_category;
+	};
+
+	template<>
+	struct iterator_traits<mn::_Stream_Back_Insert_Iterator>
+	{
+		typedef ptrdiff_t difference_type;
+		typedef char value_type;
+		typedef char* pointer;
+		typedef char& reference;
+		typedef std::output_iterator_tag iterator_category;
+	};
 }
 
 namespace mn
@@ -96,10 +212,7 @@ namespace mn
 	[[nodiscard]] inline static Str
 	strf(Str out, const char* format_str, const Args& ... args)
 	{
-		fmt::memory_buffer buf;
-		// TODO: maybe implement back inserter iterator for stream or string
-		fmt::format_to(std::back_inserter(buf), format_str, args...);
-		str_block_push(out, Block{buf.data(), buf.size()});
+		fmt::format_to(_Str_Back_Insert_Iterator(out), format_str, args...);
 		return out;
 	}
 
@@ -119,6 +232,14 @@ namespace mn
 		return strf(str_new(), format_str, args...);
 	}
 
+	// creates a new Err with the given formatted error message
+	template<typename ... Args>
+	[[nodiscard]] inline static Err
+	errf(const char* format_str, const Args& ... args)
+	{
+		return Err{ strf(str_new(), format_str, args...) };
+	}
+
 	// creates a new temporary string using the tmp allocator containing the formatted string
 	template<typename ... Args>
 	inline static Str
@@ -132,10 +253,9 @@ namespace mn
 	inline static size_t
 	print_to(Stream stream, const char* format_str, const Args& ... args)
 	{
-		fmt::memory_buffer buf;
-		// TODO: maybe implement back inserter iterator for stream or string
-		fmt::format_to(std::back_inserter(buf), format_str, args...);
-		return stream_write(stream, Block{buf.data(), buf.size()});
+		_Stream_Back_Insert_Iterator it{ stream };
+		fmt::format_to(it, format_str, args...);
+		return it.written_bytes;
 	}
 
 	// prints the formatted string to the standard output stream

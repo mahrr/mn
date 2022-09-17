@@ -1,7 +1,6 @@
 #pragma once
 
 #include "mn/Str.h"
-#include "mn/Fmt.h"
 #include "mn/Assert.h"
 
 namespace mn
@@ -15,9 +14,8 @@ namespace mn
 		Err(): msg(str_new()) {}
 
 		// creates a new error with the given error message
-		template<typename... TArgs>
-		Err(const char* fmt, TArgs&& ... args)
-			:msg(strf(fmt, std::forward<TArgs>(args)...))
+		Err(Str message)
+			:msg(message)
 		{}
 
 		Err(const Err& other)
@@ -99,24 +97,3 @@ namespace mn
 			destruct(self.val);
 	}
 }
-
-namespace fmt
-{
-	template<>
-	struct formatter<mn::Err>
-	{
-		template<typename ParseContext>
-		constexpr auto
-		parse(ParseContext &ctx)
-		{
-			return ctx.begin();
-		}
-
-		template<typename FormatContext>
-		auto
-		format(const mn::Err &err, FormatContext &ctx)
-		{
-			return format_to(ctx.out(), "{}", err.msg);
-		}
-	};
-} // namespace fmt

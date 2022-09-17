@@ -78,14 +78,14 @@ namespace mn
 		auto size = ::strlen(str);
 
 		if (str == nullptr || size == 0)
-			return Err {"empty string"};
+			return mn::errf("empty string");
 
 		size_t has_braces = 0;
 		if (str[0] == '{')
 			has_braces = 1;
 
 		if (has_braces > 0 && str[size - 1] != '}')
-			return Err {"mismatched opening curly brace"};
+			return mn::errf("mismatched opening curly brace");
 
 		size_t index = 0;
 		bool first_digit = true;
@@ -96,7 +96,7 @@ namespace mn
 				continue;
 
 			if (index >= 16 || _uuid_char_is_hex(str[i]) == false)
-				return Err { "invalid uuid" };
+				return mn::errf("invalid uuid");
 
 			if (first_digit)
 			{
@@ -111,7 +111,7 @@ namespace mn
 		}
 
 		if (index < 16)
-			return Err { "invalid uuid" };
+			return mn::errf("invalid uuid");
 
 		return self;
 	}

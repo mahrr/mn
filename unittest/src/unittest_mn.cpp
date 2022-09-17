@@ -643,11 +643,18 @@ struct V2
 	int x, y;
 };
 
-inline static std::ostream&
-operator<<(std::ostream& out, const V2& v)
+namespace fmt
 {
-	out << "V2{ " << v.x << ", " << v.y << " }";
-	return out;
+	template<>
+	struct formatter<V2> {
+		template <typename ParseContext>
+		constexpr auto parse(ParseContext& ctx) { return ctx.begin(); }
+
+		template <typename FormatContext>
+		auto format(const V2& v, FormatContext& ctx) {
+			return format_to(ctx.out(), "V2{{ {}, {} }}", v.x, v.y);
+		}
+	};
 }
 
 TEST_CASE("Fmt")
@@ -735,7 +742,7 @@ TEST_CASE("Deque")
 mn::Result<int> my_div(int a, int b)
 {
 	if (b == 0)
-		return mn::Err{ "can't calc '{}/{}' because b is 0", a, b };
+		return mn::errf("can't calc '{}/{}' because b is 0", a, b);
 	return a / b;
 }
 

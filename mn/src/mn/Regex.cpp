@@ -1,6 +1,7 @@
 #include "mn/Regex.h"
 #include "mn/Defer.h"
 #include "mn/Assert.h"
+#include "mn/Fmt.h"
 
 namespace mn
 {
@@ -597,15 +598,15 @@ namespace mn
 		{
 			auto ok = regex_compiler_process_rune(compiler);
 			if (ok == false)
-				return Err{ "can't process rune at offset {}", compiler.it - begin(compiler.str) };
+				return mn::errf("can't process rune at offset {}", compiler.it - begin(compiler.str));
 		}
 
 		while (compiler.operators_stack.count > 0)
 			if (regex_compiler_eval(compiler) == false)
-				return Err{ "failed to process regex operator" };
+				return mn::errf("failed to process regex operator");
 
 		if (compiler.operands_stack.count != 1)
-			return Err { "no operands in the stack!" };
+			return mn::errf("no operands in the stack!");
 
 		auto last_fragment = buf_top(compiler.operands_stack);
 		buf_pop(compiler.operands_stack);
