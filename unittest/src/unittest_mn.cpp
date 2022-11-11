@@ -1638,3 +1638,46 @@ TEST_CASE("empty arena checkpoint")
 
 	mn::allocator_arena_restore(arena, checkpoint);
 }
+
+TEST_CASE("Read integers")
+{
+	SUBCASE("uint8_t")
+	{
+		auto reader = mn::reader_wrap_str(nullptr, "123");
+		uint8_t str;
+		size_t read_count = mn::read_str(reader, str);
+		CHECK(read_count == 3);
+		CHECK(str == 123);
+		mn::reader_free(reader);
+	}
+
+	SUBCASE("uint16_t")
+	{
+		auto reader = mn::reader_wrap_str(nullptr, "12345");
+		uint16_t str;
+		size_t read_count = mn::read_str(reader, str);
+		CHECK(read_count == 5);
+		CHECK(str == 12345);
+		mn::reader_free(reader);
+	}
+
+	SUBCASE("uint32_t")
+	{
+		auto reader = mn::reader_wrap_str(nullptr, "4294967295");
+		uint32_t str;
+		size_t read_count = mn::read_str(reader, str);
+		CHECK(read_count == 10);
+		CHECK(str == 4294967295);
+		mn::reader_free(reader);
+	}
+
+	SUBCASE("size_t")
+	{
+		auto reader = mn::reader_wrap_str(nullptr, "4294967295");
+		size_t str;
+		size_t read_count = mn::read_str(reader, str);
+		CHECK(read_count == 10);
+		CHECK(str == 4294967295);
+		mn::reader_free(reader);
+	}
+}

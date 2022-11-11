@@ -253,6 +253,10 @@ namespace mn
 	READ_STR_UNSIGNED(uint32_t)
 	READ_STR_UNSIGNED(uint64_t)
 
+#ifdef OS_MACOS
+	READ_STR_UNSIGNED(size_t)
+#endif
+
 	#undef READ_STR_UNSIGNED
 
 	inline static size_t

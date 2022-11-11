@@ -329,7 +329,7 @@ namespace mn
 		auto os_dst_path = path_os_encoding(dst, memory::tmp());
 		auto os_dst_str = to_os_encoding(os_dst_path, memory::tmp());
 
-		return MoveFile((LPCWSTR)os_src_str.ptr, (LPCWSTR)os_dst_str.ptr);
+		return MoveFileEx((LPCWSTR)os_src_str.ptr, (LPCWSTR)os_dst_str.ptr, MOVEFILE_REPLACE_EXISTING);
 	}
 
 	Str

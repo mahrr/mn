@@ -233,6 +233,13 @@ namespace mn
 	}
 
 	// creates a new Err with the given formatted error message
+	[[nodiscard]] inline static Err
+	errf(const char* str)
+	{
+		return Err{ str_lit(str) };
+	}
+
+	// creates a new Err with the given formatted error message
 	template<typename ... Args>
 	[[nodiscard]] inline static Err
 	errf(const char* format_str, const Args& ... args)
