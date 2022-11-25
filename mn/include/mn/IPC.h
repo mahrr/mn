@@ -29,7 +29,7 @@ namespace mn::ipc
 	inline static void
 	destruct(Mutex self)
 	{
-		mn::ipc::mutex_free(self);
+		mutex_free(self);
 	}
 
 	// locks the given mutex

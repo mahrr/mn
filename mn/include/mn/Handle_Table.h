@@ -54,8 +54,8 @@ namespace mn
 	template<typename T>
 	struct Handle_Table
 	{
-		mn::Buf<Handle_Table_Item<T>> items;
-		mn::Buf<Handle_Table_Entry> _map;
+		Buf<Handle_Table_Item<T>> items;
+		Buf<Handle_Table_Entry> _map;
 		// used to index the index free list in the map
 		uint32_t _free_list_head;
 	};
@@ -68,8 +68,8 @@ namespace mn
 	handle_table_new()
 	{
 		Handle_Table<T> self{};
-		self.items = mn::buf_new<Handle_Table_Item<T>>();
-		self._map = mn::buf_new<Handle_Table_Entry>();
+		self.items = buf_new<Handle_Table_Item<T>>();
+		self._map = buf_new<Handle_Table_Entry>();
 		self._free_list_head = UINT32_MAX;
 		return self;
 	}
@@ -79,8 +79,8 @@ namespace mn
 	inline static void
 	handle_table_free(Handle_Table<T>& self)
 	{
-		mn::buf_free(self.items);
-		mn::buf_free(self._map);
+		buf_free(self.items);
+		buf_free(self._map);
 	}
 
 	// destruct overload for handle table free
@@ -106,7 +106,7 @@ namespace mn
 			Handle_Table_Entry entry;
 			entry.items_index = uint32_t(self.items.count);
 			entry.generation = 0;
-			mn::buf_push(self._map, entry);
+			buf_push(self._map, entry);
 		}
 		else
 		{
@@ -123,7 +123,7 @@ namespace mn
 			//update the items_index
 			entry.items_index = uint32_t(self.items.count);
 		}
-		mn::buf_push(self.items, Handle_Table_Item<T>{v, h.index});
+		buf_push(self.items, Handle_Table_Item<T>{v, h.index});
 		return handle_table_index_to_uint64(h);
 	}
 
@@ -155,7 +155,7 @@ namespace mn
 		// replace the free list head with the item index
 		self._free_list_head = h.index;
 
-		mn::buf_pop(self.items);
+		buf_pop(self.items);
 	}
 
 	// checks whether the value associated with the given handle exists

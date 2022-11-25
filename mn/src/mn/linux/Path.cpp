@@ -222,7 +222,7 @@ namespace mn
 		[[maybe_unused]] auto realpath_res = realpath(path, absolute_path);
 		mn_assert(realpath_res == absolute_path);
 
-		return mn::str_from_c(absolute_path, allocator);
+		return str_from_c(absolute_path, allocator);
 	}
 
 	int64_t
@@ -455,7 +455,7 @@ namespace mn
 
 		os_str = secure_getenv("HOME");
 		if (os_str && ::strlen(os_str) > 0)
-			return path_join(mn::str_with_allocator(allocator), os_str, ".config");
+			return path_join(str_with_allocator(allocator), os_str, ".config");
 
 		return str_from_c("~/.config", allocator);
 	}

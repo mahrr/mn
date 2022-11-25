@@ -224,7 +224,7 @@ namespace mn
 		[[maybe_unused]] auto realpath_res = realpath(path, absolute_path);
 		mn_assert(realpath_res == absolute_path);
 
-		return mn::str_from_c(absolute_path, allocator);
+		return str_from_c(absolute_path, allocator);
 	}
 
 	int64_t

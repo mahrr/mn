@@ -5,7 +5,7 @@
 namespace mn
 {
 	inline static bool
-	_crypto_rand(mn::Block buffer)
+	_crypto_rand(Block buffer)
 	{
 		auto res = BCryptGenRandom(NULL, (PUCHAR)buffer.ptr, (ULONG)buffer.size, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
 		return BCRYPT_SUCCESS(res);

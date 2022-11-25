@@ -17,7 +17,7 @@ namespace mn::ipc
 	mutex_new(const Str& name)
 	{
 		auto os_str = to_os_encoding(name, allocator_top());
-		mn_defer{mn::free(os_str);};
+		mn_defer{free(os_str);};
 
 		auto handle = CreateMutex(0, false, (LPCWSTR)os_str.ptr);
 		if (handle == INVALID_HANDLE_VALUE)
@@ -73,13 +73,13 @@ namespace mn::ipc
 	}
 
 	size_t
-	ISputnik::read(mn::Block data)
+	ISputnik::read(Block data)
 	{
 		return sputnik_read(this, data, INFINITE_TIMEOUT);
 	}
 
 	size_t
-	ISputnik::write(mn::Block data)
+	ISputnik::write(Block data)
 	{
 		return sputnik_write(this, data);
 	}
@@ -91,9 +91,9 @@ namespace mn::ipc
 	}
 
 	Sputnik
-	sputnik_new(const mn::Str& name)
+	sputnik_new(const Str& name)
 	{
-		auto pipename = to_os_encoding(mn::str_tmpf("\\\\.\\pipe\\{}", name));
+		auto pipename = to_os_encoding(str_tmpf("\\\\.\\pipe\\{}", name));
 		auto handle = CreateNamedPipe(
 			(LPCWSTR)pipename.ptr,
 			PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
@@ -106,7 +106,7 @@ namespace mn::ipc
 		);
 		if (handle == INVALID_HANDLE_VALUE)
 			return nullptr;
-		auto self = mn::alloc_construct<ISputnik>();
+		auto self = alloc_construct<ISputnik>();
 		self->winos_named_pipe = handle;
 		self->name = clone(name);
 		self->read_msg_size = 0;
@@ -114,9 +114,9 @@ namespace mn::ipc
 	}
 
 	Sputnik
-	sputnik_connect(const mn::Str& name)
+	sputnik_connect(const Str& name)
 	{
-		auto pipename = to_os_encoding(mn::str_tmpf("\\\\.\\pipe\\{}", name));
+		auto pipename = to_os_encoding(str_tmpf("\\\\.\\pipe\\{}", name));
 		auto handle = CreateFile(
 			(LPCWSTR)pipename.ptr,
 			GENERIC_READ | GENERIC_WRITE,
@@ -129,7 +129,7 @@ namespace mn::ipc
 		if (handle == INVALID_HANDLE_VALUE)
 			return nullptr;
 
-		auto self = mn::alloc_construct<ISputnik>();
+		auto self = alloc_construct<ISputnik>();
 		self->winos_named_pipe = handle;
 		self->name = clone(name);
 		self->read_msg_size = 0;
@@ -141,8 +141,8 @@ namespace mn::ipc
 	{
 		[[maybe_unused]] auto res = CloseHandle((HANDLE)self->winos_named_pipe);
 		mn_assert(res == TRUE);
-		mn::str_free(self->name);
-		mn::free_destruct(self);
+		str_free(self->name);
+		free_destruct(self);
 	}
 
 	bool
@@ -184,7 +184,7 @@ namespace mn::ipc
 		}
 
 		// accept the connection
-		auto pipename = to_os_encoding(mn::str_tmpf("\\\\.\\pipe\\{}", self->name));
+		auto pipename = to_os_encoding(str_tmpf("\\\\.\\pipe\\{}", self->name));
 		auto handle = CreateNamedPipe(
 			(LPCWSTR)pipename.ptr,
 			PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
@@ -197,7 +197,7 @@ namespace mn::ipc
 		);
 		if (handle == INVALID_HANDLE_VALUE)
 			return nullptr;
-		auto other = mn::alloc_construct<ISputnik>();
+		auto other = alloc_construct<ISputnik>();
 		other->winos_named_pipe = self->winos_named_pipe;
 		other->name = clone(self->name);
 		other->read_msg_size = 0;
@@ -208,7 +208,7 @@ namespace mn::ipc
 	}
 
 	size_t
-	sputnik_read(Sputnik self, mn::Block data, Timeout timeout)
+	sputnik_read(Sputnik self, Block data, Timeout timeout)
 	{
 		DWORD bytes_read = 0;
 		OVERLAPPED overlapped{};

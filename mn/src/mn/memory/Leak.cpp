@@ -32,7 +32,7 @@ namespace mn::memory
 		Node* ptr = (Node*)::malloc(size + sizeof(Node));
 
 		if (ptr == nullptr)
-			mn::panic("system out of memory");
+			panic("system out of memory");
 
 		ptr->size = size;
 		ptr->prev = nullptr;

@@ -22,7 +22,7 @@ namespace mn
 	}
 
 	void
-	callstack_print_to([[maybe_unused]] void** frames, [[maybe_unused]] size_t frames_count, [[maybe_unused]] mn::Stream out)
+	callstack_print_to([[maybe_unused]] void** frames, [[maybe_unused]] size_t frames_count, [[maybe_unused]] Stream out)
 	{
 		#if DEBUG && MN_BACKTRACE
 		constexpr size_t MAX_NAME_LEN = 255;
@@ -47,12 +47,11 @@ namespace mn
 					++name_it;
 				}
 
-				
 				size_t mangled_name_size = name_end - name_begin;
 				//function maybe inlined
 				if(mangled_name_size == 0)
 				{
-					mn::print_to(out, "[{}]: {}\n", frames_count - i - 1, symbols[i]);
+					print_to(out, "[{}]: {}\n", frames_count - i - 1, symbols[i]);
 					continue;
 				}
 
@@ -65,9 +64,9 @@ namespace mn
 				char* demangled_name = abi::__cxa_demangle(name_buffer, NULL, 0, &status);
 
 				if(status == 0)
-					mn::print_to(out, "[{}]: {}\n", frames_count - i - 1, demangled_name);
+					print_to(out, "[{}]: {}\n", frames_count - i - 1, demangled_name);
 				else
-					mn::print_to(out, "[{}]: {}\n", frames_count - i - 1, name_buffer);
+					print_to(out, "[{}]: {}\n", frames_count - i - 1, name_buffer);
 
 				::free(demangled_name);
 			}

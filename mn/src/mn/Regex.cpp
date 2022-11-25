@@ -581,7 +581,7 @@ namespace mn
 		return res;
 	}
 
-	inline static mn::Rune
+	inline static Rune
 	pop_rune(const Regex& program, Regex_Thread& thread)
 	{
 		return pop_int(program, thread);
@@ -598,15 +598,15 @@ namespace mn
 		{
 			auto ok = regex_compiler_process_rune(compiler);
 			if (ok == false)
-				return mn::errf("can't process rune at offset {}", compiler.it - begin(compiler.str));
+				return errf("can't process rune at offset {}", compiler.it - begin(compiler.str));
 		}
 
 		while (compiler.operators_stack.count > 0)
 			if (regex_compiler_eval(compiler) == false)
-				return mn::errf("failed to process regex operator");
+				return errf("failed to process regex operator");
 
 		if (compiler.operands_stack.count != 1)
-			return mn::errf("no operands in the stack!");
+			return errf("no operands in the stack!");
 
 		auto last_fragment = buf_top(compiler.operands_stack);
 		buf_pop(compiler.operands_stack);
@@ -629,21 +629,21 @@ namespace mn
 	Match_Result
 	regex_match(const Regex& program, const char* str)
 	{
-		auto current_threads = mn::buf_with_allocator<Regex_Thread>(mn::memory::tmp());
-		auto new_threads = mn::buf_with_allocator<Regex_Thread>(mn::memory::tmp());
-		auto new_thread_set = mn::set_with_allocator<size_t>(mn::memory::tmp());
+		auto current_threads = buf_with_allocator<Regex_Thread>(memory::tmp());
+		auto new_threads = buf_with_allocator<Regex_Thread>(memory::tmp());
+		auto new_thread_set = set_with_allocator<size_t>(memory::tmp());
 		Match_Result res{str, str, false, false, 0};
 		size_t res_thread_id = SIZE_MAX;
 
-		mn::buf_push(current_threads, Regex_Thread{});
+		buf_push(current_threads, Regex_Thread{});
 
 		auto it = str;
-		for (it = str;; it = mn::rune_next(it))
+		for (it = str;; it = rune_next(it))
 		{
 			if (current_threads.count == 0)
 				break;
 
-			auto str_c = mn::rune_read(it);
+			auto str_c = rune_read(it);
 
 			for (size_t i = 0; i < current_threads.count; ++i)
 			{
@@ -656,10 +656,10 @@ namespace mn
 					auto c = pop_rune(program, thread);
 					if(str_c != c)
 						break;
-					if (mn::set_lookup(new_thread_set, thread.ip) == nullptr)
+					if (set_lookup(new_thread_set, thread.ip) == nullptr)
 					{
-						mn::buf_push(new_threads, thread);
-						mn::set_insert(new_thread_set, thread.ip);
+						buf_push(new_threads, thread);
+						set_insert(new_thread_set, thread.ip);
 					}
 					break;
 				}
@@ -667,10 +667,10 @@ namespace mn
 				{
 					if (str_c == 0)
 						break;
-					if (mn::set_lookup(new_thread_set, thread.ip) == nullptr)
+					if (set_lookup(new_thread_set, thread.ip) == nullptr)
 					{
-						mn::buf_push(new_threads, thread);
-						mn::set_insert(new_thread_set, thread.ip);
+						buf_push(new_threads, thread);
+						set_insert(new_thread_set, thread.ip);
 					}
 					break;
 				}
@@ -678,15 +678,15 @@ namespace mn
 				{
 					auto offset_1 = pop_int(program, thread);
 					auto offset_2 = pop_int(program, thread);
-					mn::buf_push(current_threads, Regex_Thread{ thread.id * 2 + 1, thread.ip + offset_1 });
-					mn::buf_push(current_threads, Regex_Thread{ thread.id * 2 + 2, thread.ip + offset_2 });
+					buf_push(current_threads, Regex_Thread{ thread.id * 2 + 1, thread.ip + offset_1 });
+					buf_push(current_threads, Regex_Thread{ thread.id * 2 + 2, thread.ip + offset_2 });
 					break;
 				}
 				case RGX_OP_JUMP:
 				{
 					auto offset = pop_int(program, thread);
 					thread.ip += offset;
-					mn::buf_push(current_threads, thread);
+					buf_push(current_threads, thread);
 					break;
 				}
 				case RGX_OP_SET:
@@ -728,10 +728,10 @@ namespace mn
 					if ((op == RGX_OP_SET && inside_set) ||
 						(op == RGX_OP_NOT_SET && inside_set == false))
 					{
-						if (mn::set_lookup(new_thread_set, thread.ip) == nullptr)
+						if (set_lookup(new_thread_set, thread.ip) == nullptr)
 						{
-							mn::buf_push(new_threads, thread);
-							mn::set_insert(new_thread_set, thread.ip);
+							buf_push(new_threads, thread);
+							set_insert(new_thread_set, thread.ip);
 						}
 					}
 					break;
@@ -766,8 +766,8 @@ namespace mn
 			auto tmp = new_threads;
 			new_threads = current_threads;
 			current_threads = tmp;
-			mn::buf_clear(new_threads);
-			mn::set_clear(new_thread_set);
+			buf_clear(new_threads);
+			set_clear(new_thread_set);
 			if (str_c == '\0')
 				break;
 		}
@@ -790,7 +790,7 @@ namespace mn
 			if (res.end != it)
 				it = res.end;
 			else
-				it = mn::rune_next(it);
+				it = rune_next(it);
 		}
 		return Match_Result{str, it, false, false, 0};
 	}

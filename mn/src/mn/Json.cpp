@@ -139,7 +139,7 @@ namespace mn::json
 			prev = self.c;
 			if (_lexer_read_rune(self) == false)
 			{
-				self.err = mn::errf("unexpected end of string '{:.{}s}'", tkn.begin, self.it - tkn.begin);
+				self.err = errf("unexpected end of string '{:.{}s}'", tkn.begin, self.it - tkn.begin);
 				break;
 			}
 		}
@@ -185,7 +185,7 @@ namespace mn::json
 				}
 				break;
 			default:
-				self.err = mn::errf("unidentified keyword '{:.{}s}'", tkn.begin, tkn.end - tkn.begin);
+				self.err = errf("unidentified keyword '{:.{}s}'", tkn.begin, tkn.end - tkn.begin);
 				break;
 			}
 		}
@@ -196,7 +196,7 @@ namespace mn::json
 			tkn.val_num = ::strtod(self.it, &end);
 			if (errno == ERANGE)
 			{
-				self.err = mn::errf("number out of range '{:.{}s}'", tkn.begin, end - tkn.begin);
+				self.err = errf("number out of range '{:.{}s}'", tkn.begin, end - tkn.begin);
 			}
 
 			self.it = end;
@@ -245,7 +245,7 @@ namespace mn::json
 				break;
 
 			default:
-				self.err = mn::errf("unidentified rune '{:c}'", c);
+				self.err = errf("unidentified rune '{:c}'", c);
 				break;
 			}
 		}
@@ -298,7 +298,7 @@ namespace mn::json
 	{
 		if (self.current.kind == Token::KIND_NONE && _lexer_eof(self.lexer))
 		{
-			self.err = mn::errf("expected '{}' but found EOF", _json_token_kind_str(self.current.kind));
+			self.err = errf("expected '{}' but found EOF", _json_token_kind_str(self.current.kind));
 			return Token{};
 		}
 
@@ -309,7 +309,7 @@ namespace mn::json
 		if (res.kind == k)
 			return res;
 
-		self.err = mn::errf(
+		self.err = errf(
 			"expected '{}' but found '{:.{}s}'",
 			_json_token_kind_str(k),
 			res.begin,
@@ -399,7 +399,7 @@ namespace mn::json
 		}
 		else if (auto unknown_tkn = _parser_eat(self))
 		{
-			self.err = mn::errf(
+			self.err = errf(
 				"unidentified token '{:.{}s}' of kind '{}'",
 				unknown_tkn.begin,
 				unknown_tkn.end - unknown_tkn.begin,
@@ -415,7 +415,7 @@ namespace mn::json
 	parse(const Str& content)
 	{
 		if (content.count == 0)
-			return mn::errf("Unexpected end of JSON input");
+			return errf("Unexpected end of JSON input");
 
 		Lexer lexer;
 		lexer.it = content.ptr;

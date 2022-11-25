@@ -180,7 +180,7 @@ namespace mn
 		DWORD required_size = GetFullPathName((LPCWSTR)os_str.ptr, 0, NULL, NULL);
 
 		Block full_path = alloc(required_size * sizeof(TCHAR), alignof(TCHAR));
-		mn_defer{mn::free(full_path);};
+		mn_defer{free(full_path);};
 
 		[[maybe_unused]] DWORD written_size = GetFullPathName((LPCWSTR)os_str.ptr, required_size, (LPWSTR)full_path.ptr, NULL);
 		mn_assert_msg(written_size != 0, "GetFullPathName failed");
@@ -259,15 +259,15 @@ namespace mn
 	Str
 	path_executable(Allocator allocator)
 	{
-		auto path = mn::str_tmp();
-		mn::buf_resize_fill(path, (MAX_PATH + 1) * sizeof(WCHAR), '\0');
+		auto path = str_tmp();
+		buf_resize_fill(path, (MAX_PATH + 1) * sizeof(WCHAR), '\0');
 
 		DWORD res = 0;
 		while (true)
 		{
 			res = GetModuleFileName(NULL, (LPWSTR)path.ptr, (DWORD)(path.count / sizeof(WCHAR)));
 			if (res == path.count / sizeof(WCHAR) && GetLastError() == ERROR_INSUFFICIENT_BUFFER)
-				mn::buf_resize_fill(path, path.count * 2, '\0');
+				buf_resize_fill(path, path.count * 2, '\0');
 			else
 				break;
 		}
@@ -489,7 +489,7 @@ namespace mn
 		mn_assert(len != 0);
 
 		auto os_str = alloc(len*sizeof(TCHAR)+1, alignof(TCHAR));
-		mn_defer{mn::free(os_str);};
+		mn_defer{free(os_str);};
 
 		GetTempPath(len, (TCHAR*)os_str.ptr);
 		return path_normalize(from_os_encoding(os_str, allocator));

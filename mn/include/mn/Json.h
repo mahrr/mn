@@ -298,7 +298,7 @@ namespace mn::json
 	inline static Err
 	_extract_string(Value, T*)
 	{
-		return mn::errf("the provided element pointer is not of type const char* or Str");
+		return errf("the provided element pointer is not of type const char* or Str");
 	}
 
 	inline static Err
@@ -324,7 +324,7 @@ namespace mn::json
 	inline static Err
 	_extract_buf_from_array(Value, T*)
 	{
-		return mn::errf("the provided element pointer is not of type Buf<T>");
+		return errf("the provided element pointer is not of type Buf<T>");
 	}
 
 	template<typename T>
@@ -342,7 +342,7 @@ namespace mn::json
 		for (size_t i = 1; i < count; ++i)
 		{
 			if (first_type != (*v.as_array)[i].kind)
-				return mn::errf("can't read non uniform dyno array into a uniform Buf<T>");
+				return errf("can't read non uniform dyno array into a uniform Buf<T>");
 		}
 
 		buf_resize(*buf, count);
@@ -361,10 +361,10 @@ namespace mn::json
 	unpack(Value v, T* self, Value::KIND kind)
 	{
 		if (v.kind == Value::KIND_NULL)
-			return mn::errf("Value is null");
+			return errf("Value is null");
 
 		if (v.kind != kind)
-			return mn::errf("mismatched value type");
+			return errf("mismatched value type");
 
 		auto err = Err{};
 		switch (kind)
@@ -377,7 +377,7 @@ namespace mn::json
 			}
 			else
 			{
-				err = mn::errf("the provided element pointer is not of type bool");
+				err = errf("the provided element pointer is not of type bool");
 			}
 			break;
 		case Value::KIND_NUMBER:
@@ -388,13 +388,13 @@ namespace mn::json
 					*self = T(v.as_number);
 					if ((double)*self != (double)v.as_number)
 					{
-						err = mn::errf("loss of percision while unpacking a value");
+						err = errf("loss of percision while unpacking a value");
 					}
 				}
 			}
 			else
 			{
-				err = mn::errf("the provided element pointer is not of signed integral type");
+				err = errf("the provided element pointer is not of signed integral type");
 			}
 			break;
 		case Value::KIND_STRING:
@@ -404,7 +404,7 @@ namespace mn::json
 			err = _extract_buf_from_array(v, self);
 			break;
 		default:
-			err = mn::errf("unsupported unpack type");
+			err = errf("unsupported unpack type");
 			break;
 		}
 		return err;
@@ -499,7 +499,7 @@ namespace mn::json
 	unpack(Value v, std::initializer_list<Struct_Element> elements)
 	{
 		if (v.kind == Value::KIND_NULL)
-			return mn::errf("value is null");
+			return errf("value is null");
 
 		auto values = buf_with_allocator<Value>(memory::tmp());
 		buf_resize(values, elements.size());
@@ -514,12 +514,12 @@ namespace mn::json
 			for (auto field_name : path)
 			{
 				if (field.kind != Value::KIND_OBJECT)
-					return mn::errf("accessing a non-object value while traversing key '{}'", field_name);
+					return errf("accessing a non-object value while traversing key '{}'", field_name);
 
 				if (auto subfield = value_object_lookup(field, field_name))
 					field = *subfield;
 				else
-					return mn::errf("struct doesn't have a '{}' field", e.name);
+					return errf("struct doesn't have a '{}' field", e.name);
 			}
 
 			values[i] = field;
@@ -538,7 +538,7 @@ namespace mn::json
 			else
 			{
 				if (values[i].kind != e.kind)
-					return mn::errf("dyno type mismatch in field '{}'", e.name);
+					return errf("dyno type mismatch in field '{}'", e.name);
 			}
 			++elements_it;
 		}

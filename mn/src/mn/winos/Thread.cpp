@@ -686,7 +686,7 @@ namespace mn
 	void
 	cond_var_free(Cond_Var self)
 	{
-		mn::free(self);
+		free(self);
 	}
 
 	void

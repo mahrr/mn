@@ -93,7 +93,7 @@ namespace mn
 				}
 			}
 
-			mn::print_to(
+			print_to(
 				out,
 				"[{}]: {}, {}:{}\n",
 				frames_count - i - 1,

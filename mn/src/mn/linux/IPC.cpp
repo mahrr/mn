@@ -89,13 +89,13 @@ namespace mn::ipc
 	}
 
 	size_t
-	ISputnik::read(mn::Block data)
+	ISputnik::read(Block data)
 	{
 		return sputnik_read(this, data, INFINITE_TIMEOUT);
 	}
 
 	size_t
-	ISputnik::write(mn::Block data)
+	ISputnik::write(Block data)
 	{
 		return sputnik_write(this, data);
 	}
@@ -107,7 +107,7 @@ namespace mn::ipc
 	}
 
 	Sputnik
-	sputnik_new(const mn::Str& name)
+	sputnik_new(const Str& name)
 	{
 		sockaddr_un addr{};
 		addr.sun_family = AF_LOCAL;
@@ -128,14 +128,14 @@ namespace mn::ipc
 			::close(handle);
 			return nullptr;
 		}
-		auto self = mn::alloc_construct<ISputnik>();
+		auto self = alloc_construct<ISputnik>();
 		self->linux_domain_socket = handle;
-		self->name = mn::str_from_substr(name.ptr, name.ptr + name_length);
+		self->name = str_from_substr(name.ptr, name.ptr + name_length);
 		return self;
 	}
 
 	Sputnik
-	sputnik_connect(const mn::Str& name)
+	sputnik_connect(const Str& name)
 	{
 		sockaddr_un addr{};
 		addr.sun_family = AF_LOCAL;
@@ -157,9 +157,9 @@ namespace mn::ipc
 		}
 		worker_block_clear();
 
-		auto self = mn::alloc_construct<ISputnik>();
+		auto self = alloc_construct<ISputnik>();
 		self->linux_domain_socket = handle;
-		self->name = mn::str_from_substr(name.ptr, name.ptr + name_length);
+		self->name = str_from_substr(name.ptr, name.ptr + name_length);
 		return self;
 	}
 
@@ -167,8 +167,8 @@ namespace mn::ipc
 	sputnik_free(Sputnik self)
 	{
 		::close(self->linux_domain_socket);
-		mn::str_free(self->name);
-		mn::free_destruct(self);
+		str_free(self->name);
+		free_destruct(self);
 	}
 
 	bool
@@ -208,7 +208,7 @@ namespace mn::ipc
 		auto handle = ::accept(self->linux_domain_socket, 0, 0);
 		if(handle == -1)
 			return nullptr;
-		auto other = mn::alloc_construct<ISputnik>();
+		auto other = alloc_construct<ISputnik>();
 		other->linux_domain_socket = handle;
 		other->name = clone(self->name);
 		return other;

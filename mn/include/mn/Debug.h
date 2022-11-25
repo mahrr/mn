@@ -12,5 +12,5 @@ namespace mn
 
 	// prints the captured callstack to the given stream
 	MN_EXPORT void
-	callstack_print_to(void** frames, size_t frames_count, mn::Stream out);
+	callstack_print_to(void** frames, size_t frames_count, Stream out);
 }

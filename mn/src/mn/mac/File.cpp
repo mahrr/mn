@@ -427,7 +427,7 @@ namespace mn
 		auto res = ::munmap(self->file_view.data.ptr, self->file_view.data.size);
 		if (self->mn_file_handle)
 			file_close(self->mn_file_handle);
-		mn::free(self);
+		free(self);
 		return res == 0;
 	}
 }

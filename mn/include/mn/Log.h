@@ -11,7 +11,7 @@ namespace mn
 	log_debug([[maybe_unused]] const char* fmt, [[maybe_unused]] TArgs&&... args)
 	{
 		#ifdef DEBUG
-		auto msg = mn::str_tmpf(fmt, args...);
+		auto msg = str_tmpf(fmt, args...);
 		_log_debug_str(msg.ptr);
 		#endif
 	}
@@ -21,7 +21,7 @@ namespace mn
 	inline static void
 	log_info(const char* fmt, TArgs&&... args)
 	{
-		auto msg = mn::str_tmpf(fmt, args...);
+		auto msg = str_tmpf(fmt, args...);
 		_log_info_str(msg.ptr);
 	}
 
@@ -30,7 +30,7 @@ namespace mn
 	inline static void
 	log_warning(const char* fmt, TArgs&&... args)
 	{
-		auto msg = mn::str_tmpf(fmt, args...);
+		auto msg = str_tmpf(fmt, args...);
 		_log_warning_str(msg.ptr);
 	}
 
@@ -39,7 +39,7 @@ namespace mn
 	inline static void
 	log_error(const char* fmt, TArgs&&... args)
 	{
-		auto msg = mn::str_tmpf(fmt, args...);
+		auto msg = str_tmpf(fmt, args...);
 		_log_error_str(msg.ptr);
 	}
 
@@ -48,7 +48,7 @@ namespace mn
 	[[noreturn]] inline static void
 	log_critical(const char* fmt, TArgs&&... args)
 	{
-		auto msg = mn::str_tmpf(fmt, args...);
+		auto msg = str_tmpf(fmt, args...);
 		_log_critical_str(msg.ptr);
 		::abort();
 	}

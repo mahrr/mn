@@ -5,7 +5,7 @@
 namespace mn
 {
 	inline static bool
-	_crypto_rand(mn::Block buffer)
+	_crypto_rand(Block buffer)
 	{
 		return getentropy(buffer.ptr, buffer.size) == 0;
 	}

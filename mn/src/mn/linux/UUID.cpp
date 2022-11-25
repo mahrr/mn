@@ -5,7 +5,7 @@
 namespace mn
 {
 	inline static void
-	_crypto_rand(mn::Block buffer)
+	_crypto_rand(Block buffer)
 	{
 		size_t s = 0;
 		while (s < buffer.size)

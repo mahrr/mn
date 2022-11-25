@@ -522,10 +522,10 @@ namespace mn
 	// this way you won't need to load the entire file into memory in order to process it
 	template<typename TFunc, typename ... TArgs>
 	inline static Auto_Chan_Stream
-	lazy_stream(Fabric f, TFunc&& func, mn::Stream stream_in, TArgs&& ... args)
+	lazy_stream(Fabric f, TFunc&& func, Stream stream_in, TArgs&& ... args)
 	{
 		Auto_Chan_Stream res;
-		mn::go(f, [=]{
+		go(f, [=]{
 			func(stream_in, res, args...);
 			chan_stream_close(res);
 		});
@@ -576,7 +576,7 @@ namespace mn
 	{
 		using return_type = std::invoke_result_t<TFunc, TArgs...>;
 		Future<return_type> self{};
-		self._internal_future = mn::alloc_zerod<_IFuture<return_type>>();
+		self._internal_future = alloc_zerod<_IFuture<return_type>>();
 		self._internal_future->_wg = waitgroup_new();
 		waitgroup_add(self._internal_future->_wg, 1);
 
@@ -601,7 +601,7 @@ namespace mn
 	{
 		using return_type = std::invoke_result_t<TFunc, TArgs...>;
 		Future<return_type> self{};
-		self._internal_future = mn::alloc_zerod<_IFuture<return_type>>();
+		self._internal_future = alloc_zerod<_IFuture<return_type>>();
 		self._internal_future->_wg = waitgroup_new();
 		waitgroup_add(self._internal_future->_wg, 1);
 
@@ -733,7 +733,7 @@ namespace mn
 			mutex_free(self->mtx);
 			cond_var_free(self->read_cv);
 			cond_var_free(self->write_cv);
-			mn::free(self);
+			free(self);
 			return nullptr;
 		}
 		return self;
@@ -1120,8 +1120,8 @@ namespace mn
 			{
 				for (size_t global_x = 0; global_x < workgroup_num.x; ++global_x)
 				{
-					auto checkpoint = mn::memory::tmp()->checkpoint();
-					mn_defer{mn::memory::tmp()->restore(checkpoint);};
+					auto checkpoint = memory::tmp()->checkpoint();
+					mn_defer{memory::tmp()->restore(checkpoint);};
 
 					Compute_Args args{};
 					args.workgroup_size = tile_size;

@@ -34,7 +34,7 @@ namespace mn::memory
 
 		Block res {::malloc(size), size};
 		if (res.ptr == nullptr)
-			mn::panic("system out of memory");
+			panic("system out of memory");
 
 		_memory_profile_alloc(res.ptr, res.size);
 		if (block_is_empty(res) == false)

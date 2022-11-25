@@ -106,7 +106,7 @@ namespace mn
 		if (handle == -1)
 			return nullptr;
 
-		auto self = mn::alloc_construct<ISocket>();
+		auto self = alloc_construct<ISocket>();
 		self->handle = handle;
 		self->family = socket_family;
 		self->type = socket_type;
@@ -117,7 +117,7 @@ namespace mn
 	socket_close(Socket self)
 	{
 		::close(self->handle);
-		mn::free_destruct(self);
+		free_destruct(self);
 	}
 
 	bool
@@ -204,7 +204,7 @@ namespace mn
 		if(handle == -1)
 			return nullptr;
 
-		auto other = mn::alloc_construct<ISocket>();
+		auto other = alloc_construct<ISocket>();
 		other->handle = handle;
 		other->family = self->family;
 		other->type = self->type;

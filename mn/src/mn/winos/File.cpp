@@ -589,7 +589,7 @@ namespace mn
 		res |= CloseHandle(self->file_map);
 		if (self->mn_file_handle)
 			file_close(self->mn_file_handle);
-		mn::free(self);
+		free(self);
 		return res;
 	}
 }

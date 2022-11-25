@@ -27,7 +27,7 @@ namespace mn::memory
 		ptrdiff_t used_memory = this->alloc_head - (uint8_t*)this->memory.ptr;
 		[[maybe_unused]] size_t free_memory = this->memory.size - used_memory;
 		if (free_memory < size)
-			mn::panic("stack allocator out of memory");
+			panic("stack allocator out of memory");
 
 		uint8_t* ptr = this->alloc_head;
 		this->alloc_head = ptr + size;

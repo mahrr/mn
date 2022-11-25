@@ -168,7 +168,7 @@ namespace mn
 		if (LOG.debug)
 			LOG.debug(LOG.self, msg);
 		else
-			mn::printerr("[debug]: {}\n", msg);
+			printerr("[debug]: {}\n", msg);
 	}
 
 	void
@@ -177,7 +177,7 @@ namespace mn
 		if (LOG.info)
 			LOG.info(LOG.self, msg);
 		else
-			mn::printerr("[info]: {}\n", msg);
+			printerr("[info]: {}\n", msg);
 	}
 
 	void
@@ -186,7 +186,7 @@ namespace mn
 		if (LOG.warning)
 			LOG.warning(LOG.self, msg);
 		else
-			mn::printerr("[warning]: {}\n", msg);
+			printerr("[warning]: {}\n", msg);
 	}
 
 	void
@@ -195,7 +195,7 @@ namespace mn
 		if (LOG.error)
 			LOG.error(LOG.self, msg);
 		else
-			mn::printerr("[error]: {}\n", msg);
+			printerr("[error]: {}\n", msg);
 	}
 
 	void
@@ -204,7 +204,7 @@ namespace mn
 		if (LOG.critical)
 			LOG.critical(LOG.self, msg);
 		else
-			mn::printerr("[critical]: {}\n", msg);
+			printerr("[critical]: {}\n", msg);
 	}
 
 	Thread_Profile_Interface

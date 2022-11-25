@@ -656,7 +656,7 @@ namespace mn
 	{
 		[[maybe_unused]] auto res = pthread_cond_destroy(&self->cv);
 		mn_assert(res == 0);
-		mn::free(self);
+		free(self);
 	}
 
 	void

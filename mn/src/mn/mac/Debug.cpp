@@ -22,7 +22,7 @@ namespace mn
 	}
 
 	void
-	callstack_print_to([[maybe_unused]] void** frames, [[maybe_unused]] size_t frames_count, [[maybe_unused]] mn::Stream out)
+	callstack_print_to([[maybe_unused]] void** frames, [[maybe_unused]] size_t frames_count, [[maybe_unused]] Stream out)
 	{
 #ifndef NDEBUG
 		char** symbols = backtrace_symbols(frames, frames_count);
@@ -43,9 +43,9 @@ namespace mn
 				char* demangled_name = abi::__cxa_demangle(function_name, NULL, 0, &status);
 
 				if(status == 0)
-					mn::print_to(out, "[{}]: {}\n", frames_count - i - 1, demangled_name);
+					print_to(out, "[{}]: {}\n", frames_count - i - 1, demangled_name);
 				else
-					mn::print_to(out, "[{}]: {}\n", frames_count - i - 1, function_name);
+					print_to(out, "[{}]: {}\n", frames_count - i - 1, function_name);
 
 				::free(demangled_name);
 			}
