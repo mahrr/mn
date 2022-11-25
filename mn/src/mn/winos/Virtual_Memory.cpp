@@ -12,10 +12,23 @@ namespace mn
 	virtual_alloc(void* address_hint, size_t size)
 	{
 		Block result{};
-		result.ptr = VirtualAlloc(address_hint, size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+		result.ptr = VirtualAlloc(address_hint, size, MEM_RESERVE, PAGE_READWRITE);
 		if(result.ptr)
 			result.size = size;
 		return result;
+	}
+
+	void
+	virtual_commit(Block block)
+	{
+		VirtualAlloc(block.ptr, block.size, MEM_COMMIT, PAGE_READWRITE);
+	}
+
+	void
+	virtual_release(Block block)
+	{
+		[[maybe_unused]] auto res = VirtualFree(block.ptr, block.size, MEM_DECOMMIT);
+		mn_assert(res != FALSE);
 	}
 
 	void

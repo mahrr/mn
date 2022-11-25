@@ -50,6 +50,18 @@ namespace mn::memory
 	}
 
 	void
+	Leak::commit(Block)
+	{
+		// do nothing
+	}
+
+	void
+	Leak::release(Block)
+	{
+		// do nothing
+	}
+
+	void
 	Leak::free(Block block)
 	{
 		if (block_is_empty(block) == false)

@@ -47,6 +47,18 @@ namespace mn::memory
 	}
 
 	void
+	Fast_Leak::commit(Block)
+	{
+		// do nothing
+	}
+
+	void
+	Fast_Leak::release(Block)
+	{
+		// do nothing
+	}
+
+	void
 	Fast_Leak::free(Block block)
 	{
 		if(block_is_empty(block) == false)

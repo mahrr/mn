@@ -176,6 +176,7 @@ namespace mn
 	inline static void
 	buf_clear(Buf<T>& self)
 	{
+		self.allocator->release(Block{self.ptr, self.cap * sizeof(T)});
 		self.count = 0;
 	}
 
@@ -195,11 +196,13 @@ namespace mn
 		if (self.allocator == nullptr)
 			self.allocator = allocator_top();
 
-		Block new_block = alloc_from(self.allocator,
-									 new_count * sizeof(T),
-									 alignof(T));
+		auto new_block = self.allocator->alloc(new_count * sizeof(T), alignof(T));
+
 		if(self.count)
+		{
+			self.allocator->commit(Block{new_block.ptr, self.count * sizeof(T)});
 			::memcpy(new_block.ptr, self.ptr, self.count * sizeof(T));
+		}
 		if(self.cap)
 			free_from(self.allocator, Block{ self.ptr, self.cap * sizeof(T) });
 		self.ptr = (T*)new_block.ptr;
@@ -227,7 +230,14 @@ namespace mn
 	buf_resize(Buf<T>& self, size_t new_size)
 	{
 		if(new_size > self.count)
+		{
 			buf_reserve(self, new_size - self.count);
+			self.allocator->commit(Block{self.ptr + self.count, (new_size - self.count) * sizeof(T)});
+		}
+		else
+		{
+			self.allocator->release(Block{self.ptr + new_size, (self.count - new_size) * sizeof(T)});
+		}
 		self.count = new_size;
 	}
 
@@ -237,13 +247,10 @@ namespace mn
 	inline static void
 	buf_resize_fill(Buf<T>& self, size_t new_size, const U& fill_val)
 	{
-		if(new_size > self.count)
-		{
-			buf_reserve(self, new_size - self.count);
-			for(size_t i = self.count; i < new_size; ++i)
-				self.ptr[i] = fill_val;
-		}
-		self.count = new_size;
+		auto old_count = self.count;
+		buf_resize(self, new_size);
+		for(size_t i = old_count; i < new_size; ++i)
+			self.ptr[i] = fill_val;
 	}
 
 	// shrinks the given buf to exactly the size of the contained elements
@@ -272,6 +279,7 @@ namespace mn
 		if(self.count == self.cap)
 			buf_reserve(self, self.cap ? self.cap * 2 : 8);
 
+		self.allocator->commit(Block{self.ptr + self.count, sizeof(T)});
 		self.ptr[self.count] = T(value);
 		++self.count;
 		return self.ptr + self.count - 1;
@@ -298,6 +306,8 @@ namespace mn
 			return buf_push(self, value);
 		if (self.count == self.cap)
 			buf_reserve(self, self.cap ? self.cap * 2 : 8);
+
+		self.allocator->commit(Block{self.ptr + self.count, sizeof(T)});
 		::memmove(self.ptr + index + 1, self.ptr + index, (self.count - index) * sizeof(T));
 		++self.count;
 		self.ptr[index] = T(value);
@@ -312,6 +322,7 @@ namespace mn
 		mn_assert(index < self.count);
 		::memmove(self.ptr + index, self.ptr + index + 1, (self.count - index - 1) * sizeof(T));
 		--self.count;
+		self.allocator->release(Block{self.ptr + self.count, sizeof(T)});
 	}
 
 	// pushes a range of elements to the end of the given buf
@@ -340,6 +351,7 @@ namespace mn
 	{
 		mn_assert(self.count > 0);
 		--self.count;
+		self.allocator->release(Block{self.ptr + self.count, sizeof(T)});
 	}
 
 	// rmeoves any element which the predicate signals (by returning true)
@@ -360,7 +372,9 @@ namespace mn
 			}
 		}
 
-		self.count -= end_it - front_it;
+		auto removed_count = end_it - front_it;
+		self.count -= removed_count;
+		self.allocator->release(Block{self.ptr + self.count, removed_count * sizeof(T)});
 	}
 
 	// removes the element found at the given index (will not keep order)
@@ -376,6 +390,7 @@ namespace mn
 			self.ptr[ix] = tmp;
 		}
 		--self.count;
+		self.allocator->release(Block{self.ptr + self.count, sizeof(T)});
 	}
 
 	// removes the element which the given iterator points to (will not keep order)

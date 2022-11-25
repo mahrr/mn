@@ -41,6 +41,18 @@ namespace mn::memory
 	}
 
 	void
+	Arena::commit(Block block)
+	{
+		meta->commit(block);
+	}
+
+	void
+	Arena::release(Block block)
+	{
+		meta->release(block);
+	}
+
+	void
 	Arena::free(Block)
 	{
 	}

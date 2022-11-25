@@ -36,6 +36,18 @@ namespace mn::memory
 	}
 
 	void
+	Stack::commit(Block block)
+	{
+		meta->commit(block);
+	}
+
+	void
+	Stack::release(Block block)
+	{
+		meta->release(block);
+	}
+
+	void
 	Stack::free(Block)
 	{
 		mn_assert(this->allocations_count > 0);

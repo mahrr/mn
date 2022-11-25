@@ -22,6 +22,18 @@ namespace mn::memory
 	}
 
 	void
+	CLib::commit(Block)
+	{
+		// do nothing
+	}
+
+	void
+	CLib::release(Block)
+	{
+		// do nothing
+	}
+
+	void
 	CLib::free(Block block)
 	{
 		_memory_profile_free(block.ptr, block.size);

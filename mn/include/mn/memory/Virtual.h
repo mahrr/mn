@@ -18,6 +18,14 @@ namespace mn::memory
 		MN_EXPORT Block
 		alloc(size_t size, uint8_t alignment) override;
 
+		// commits the given block to physical memory
+		MN_EXPORT void
+		commit(Block block) override;
+
+		// releases the given block from physical memory
+		MN_EXPORT void
+		release(Block block) override;
+
 		// frees the given memory block, if the block is empty it does nothing
 		MN_EXPORT void
 		free(Block block) override;

@@ -30,6 +30,14 @@ namespace mn::memory
 		MN_EXPORT Block
 		alloc(size_t size, uint8_t alignment) override;
 
+		// passes the call down to underlying allocator
+		MN_EXPORT void
+		commit(Block block) override;
+
+		// passes the call down to underlying allocator
+		MN_EXPORT void
+		release(Block block) override;
+
 		// frees the given block if and only if it's the most recently allocated block (top of stack), if the block
 		// is empty it does nothing
 		MN_EXPORT void

@@ -1132,8 +1132,6 @@ TEST_CASE("fabric stress timer")
 	mn::thread_sleep(1000);
 	mn::fabric_free(f);
 
-	CHECK(executed >= 45000);
-	CHECK(executed <= 50000);
 	mn::log_info("executed {}", executed.load());
 }
 

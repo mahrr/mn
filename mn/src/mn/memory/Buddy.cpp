@@ -179,6 +179,8 @@ namespace mn::memory
 		size_t total_size = heap_size + buckets_size + node_is_split_size;
 
 		memory = meta->alloc(total_size, alignof(int));
+		// TODO: for now we are committing all the memory I will revisit that later
+		meta->commit(memory);
 
 		base_ptr = (uint8_t*)memory.ptr;
 		max_ptr = (uint8_t*)memory.ptr;
@@ -198,6 +200,7 @@ namespace mn::memory
 
 	Buddy::~Buddy()
 	{
+		meta->release(memory);
 		meta->free(memory);
 	}
 
@@ -283,6 +286,18 @@ namespace mn::memory
 			return Block{ptr + BUDDY_HEADER_SIZE, request};
 		}
 		return {};
+	}
+
+	void
+	Buddy::commit(Block)
+	{
+		// meta->commit(block);
+	}
+
+	void
+	Buddy::release(Block)
+	{
+		// meta->release(block);
 	}
 
 	void

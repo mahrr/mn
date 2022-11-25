@@ -23,13 +23,16 @@ namespace mn
 	inline static Block
 	alloc_from(Allocator self, size_t size, uint8_t alignment)
 	{
-		return self->alloc(size, alignment);
+		auto block = self->alloc(size, alignment);
+		self->commit(block);
+		return block;
 	}
 
 	// frees a block using the given allocator
 	inline static void
 	free_from(Allocator self, Block block)
 	{
+		self->release(block);
 		self->free(block);
 	}
 

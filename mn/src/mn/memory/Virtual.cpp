@@ -13,6 +13,18 @@ namespace mn::memory
 	}
 
 	void
+	Virtual::commit(Block block)
+	{
+		virtual_commit(block);
+	}
+
+	void
+	Virtual::release(Block block)
+	{
+		virtual_release(block);
+	}
+
+	void
 	Virtual::free(Block block)
 	{
 		_memory_profile_free(block.ptr, block.size);
