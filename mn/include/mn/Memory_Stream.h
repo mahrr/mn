@@ -25,16 +25,16 @@ namespace mn
 		MN_EXPORT virtual void
 		dispose() override;
 
-		MN_EXPORT virtual size_t
+		MN_EXPORT virtual Result<size_t, IO_ERROR>
 		read(Block data) override;
 
-		MN_EXPORT virtual size_t
+		MN_EXPORT virtual Result<size_t, IO_ERROR>
 		write(Block data) override;
 
-		MN_EXPORT virtual int64_t
+		MN_EXPORT virtual Result<size_t, IO_ERROR>
 		size() override;
 
-		virtual int64_t
+		virtual Result<size_t, IO_ERROR>
 		cursor_operation(STREAM_CURSOR_OP op, int64_t arg) override
 		{
 			switch (op)
@@ -55,7 +55,7 @@ namespace mn
 				return this->cursor;
 			default:
 				mn_unreachable();
-				return STREAM_CURSOR_ERROR;
+				return IO_ERROR_UNKNOWN;
 			}
 		}
 	};
@@ -76,15 +76,15 @@ namespace mn
 	}
 
 	// writes the given block of bytes to a memory stream, returns the amount of written bytes
-	MN_EXPORT size_t
+	MN_EXPORT Result<size_t, IO_ERROR>
 	memory_stream_write(Memory_Stream self, Block data);
 
 	// reads into the given memory block from a memory stream, returns the amount of read bytes
-	MN_EXPORT size_t
+	MN_EXPORT Result<size_t, IO_ERROR>
 	memory_stream_read(Memory_Stream self, Block data);
 
 	// returns the size of the given memory stream
-	MN_EXPORT int64_t
+	MN_EXPORT Result<size_t, IO_ERROR>
 	memory_stream_size(Memory_Stream self);
 
 	// returns whether stream's cursor has reached end of file
@@ -92,7 +92,7 @@ namespace mn
 	memory_stream_eof(Memory_Stream self);
 
 	// returns the position of stream's cursor
-	MN_EXPORT int64_t
+	MN_EXPORT Result<size_t, IO_ERROR>
 	memory_stream_cursor_pos(Memory_Stream self);
 
 	// moves the cursor by the given offset

@@ -38,6 +38,23 @@ namespace mn::ipc
 		return fcntl(intptr_t(self), F_SETLK, &fl) != -1;
 	}
 
+	inline static IO_ERROR
+	_ipc_error_from_os(int error)
+	{
+		switch(error)
+		{
+		case ECONNREFUSED:
+			return IO_ERROR_CLOSED;
+		case EFAULT:
+		case EINVAL:
+			return IO_ERROR_INTERNAL_ERROR;
+		case ENOMEM:
+			return IO_ERROR_OUT_OF_MEMORY;
+		default:
+			return IO_ERROR_UNKNOWN;
+		}
+	}
+
 	// API
 	Mutex
 	mutex_new(const Str& name)
@@ -88,22 +105,16 @@ namespace mn::ipc
 		sputnik_free(this);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	ISputnik::read(Block data)
 	{
 		return sputnik_read(this, data, INFINITE_TIMEOUT);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	ISputnik::write(Block data)
 	{
 		return sputnik_write(this, data);
-	}
-
-	int64_t
-	ISputnik::size()
-	{
-		return 0;
 	}
 
 	Sputnik
@@ -214,7 +225,7 @@ namespace mn::ipc
 		return other;
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	sputnik_read(Sputnik self, Block data, Timeout timeout)
 	{
 		pollfd pfd_read{};
@@ -236,16 +247,18 @@ namespace mn::ipc
 			res = ::read(self->linux_domain_socket, data.ptr, data.size);
 		worker_block_clear();
 		if(res == -1)
-			return 0;
+			return _ipc_error_from_os(errno);
 		return res;
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	sputnik_write(Sputnik self, Block data)
 	{
 		worker_block_ahead();
 		auto res = ::write(self->linux_domain_socket, data.ptr, data.size);
 		worker_block_clear();
+		if (res == -1)
+			return _ipc_error_from_os(errno);
 		return res;
 	}
 
@@ -253,66 +266,5 @@ namespace mn::ipc
 	sputnik_disconnect(Sputnik self)
 	{
 		return ::unlink(self->name.ptr) == 0;
-	}
-
-	bool
-	sputnik_msg_write(Sputnik self, Block data)
-	{
-		uint64_t len = data.size;
-		auto res = sputnik_write(self, block_from(len));
-		res += sputnik_write(self, data);
-		return res == (data.size + sizeof(len));
-	}
-
-	Msg_Read_Return
-	sputnik_msg_read(Sputnik self, Block data, Timeout timeout)
-	{
-		// if we don't have any remaining bytes in the message
-		if(self->read_msg_size == 0)
-		{
-			uint8_t* it = (uint8_t*)&self->read_msg_size;
-			size_t read_size = sizeof(self->read_msg_size);
-			Timeout t = timeout;
-			while(read_size > 0)
-			{
-				auto res = sputnik_read(self, {it, read_size}, t);
-				if (res == 0)
-					return Msg_Read_Return{};
-				t = INFINITE_TIMEOUT;
-				it += res;
-				read_size -= res;
-			}
-		}
-
-		// try reading a block of the message
-		size_t read_size = data.size;
-		if(data.size > self->read_msg_size)
-			read_size = self->read_msg_size;
-		auto res = sputnik_read(self, {data.ptr, read_size}, timeout);
-		self->read_msg_size -= res;
-		return {res, self->read_msg_size};
-	}
-
-	Str
-	sputnik_msg_read_alloc(Sputnik self, Timeout timeout, Allocator allocator)
-	{
-		auto res = str_with_allocator(allocator);
-		if(self->read_msg_size != 0)
-			return res;
-
-		auto [consumed, remaining] = sputnik_msg_read(self, {}, timeout);
-		if (remaining == 0 && consumed == 0)
-			return res;
-
-		str_resize(res, remaining);
-		auto block = block_from(res);
-		while (remaining > 0)
-		{
-			auto [consumed2, remaining2] = sputnik_msg_read(self, block, timeout);
-			remaining -= consumed2;
-			block = block + consumed2;
-		}
-		mn_assert(remaining == 0);
-		return res;
 	}
 }

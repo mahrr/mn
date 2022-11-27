@@ -13,34 +13,31 @@ serve_client(mn::ipc::Sputnik client)
 		mn::str_free(data);
 		mn::ipc::sputnik_free(client);
 	};
-	size_t read_bytes = 0, write_bytes = 0;
+	size_t read_bytes = 0;
 
 	do
 	{
 		mn::str_resize(data, 1024);
-		read_bytes = mn::ipc::sputnik_read(client, mn::block_from(data), mn::INFINITE_TIMEOUT);
+		auto [read_bytes_count, read_err] = mn::ipc::sputnik_read(client, mn::block_from(data), mn::INFINITE_TIMEOUT);
+		if (read_err)
+		{
+			mn::print("{}\n", mn::io_error_message(read_err));
+			return;
+		}
+		read_bytes = read_bytes_count;
+
 		if(read_bytes > 0)
 		{
 			mn::str_resize(data, read_bytes);
-			write_bytes = mn::ipc::sputnik_write(client, mn::block_from(data));
+			auto [write_bytes, write_err] = mn::ipc::sputnik_write(client, mn::block_from(data));
+			if (write_err)
+			{
+				mn::print("{}\n", mn::io_error_message(write_err));
+				return;
+			}
 			mn_assert_msg(write_bytes == read_bytes, "sputnik_write failed");
 		}
 	} while(read_bytes > 0);
-}
-
-void
-serve_client_msg(mn::ipc::Sputnik client)
-{
-	mn_defer{mn::ipc::sputnik_free(client);};
-
-	do
-	{
-		auto msg = mn::ipc::sputnik_msg_read_alloc(client, mn::INFINITE_TIMEOUT);
-		if(msg.count == 0)
-			break;
-		mn::ipc::sputnik_msg_write(client, block_from(msg));
-		mn::str_free(msg);
-	} while(true);
 }
 
 int
@@ -61,7 +58,7 @@ main()
 		auto client = mn::ipc::sputnik_accept(server, { 10000 });
 		if (client)
 		{
-			mn::go(f, serve_client_msg, client);
+			mn::go(f, serve_client, client);
 		}
 		else
 		{

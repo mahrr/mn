@@ -48,20 +48,20 @@ namespace mn
 		}
 	}
 
-	inline static MN_SOCKET_ERROR
+	inline static IO_ERROR
 	_socket_error_from_os(int error)
 	{
 		switch(error)
 		{
 		case ECONNREFUSED:
-			return MN_SOCKET_ERROR_CONNECTION_CLOSED;
+			return IO_ERROR_CLOSED;
 		case EFAULT:
 		case EINVAL:
-			return MN_SOCKET_ERROR_INTERNAL_ERROR;
+			return IO_ERROR_INTERNAL_ERROR;
 		case ENOMEM:
-			return MN_SOCKET_ERROR_OUT_OF_MEMORY;
+			return IO_ERROR_OUT_OF_MEMORY;
 		default:
-			return MN_SOCKET_ERROR_GENERIC_ERROR;
+			return IO_ERROR_UNKNOWN;
 		}
 	}
 
@@ -73,23 +73,16 @@ namespace mn
 		socket_close(this);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	ISocket::read(Block data)
 	{
-		auto [read_bytes, _] = socket_read(this, data, INFINITE_TIMEOUT);
-		return read_bytes;
+		return socket_read(this, data, INFINITE_TIMEOUT);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	ISocket::write(Block data)
 	{
 		return socket_write(this, data);
-	}
-
-	int64_t
-	ISocket::size()
-	{
-		return 0;
 	}
 
 	Socket
@@ -217,7 +210,7 @@ namespace mn
 		::shutdown(self->handle, SHUT_WR);
 	}
 
-	Result<size_t, MN_SOCKET_ERROR>
+	Result<size_t, IO_ERROR>
 	socket_read(Socket self, Block data, Timeout timeout)
 	{
 		pollfd pfd_read{};
@@ -250,18 +243,18 @@ namespace mn
 		}
 		else
 		{
-			return MN_SOCKET_ERROR_TIMEOUT;
+			return IO_ERROR_TIMEOUT;
 		}
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	socket_write(Socket self, Block data)
 	{
 		worker_block_ahead();
 		auto res = ::send(self->handle, data.ptr, data.size, 0);
 		worker_block_clear();
 		if(res == -1)
-			return 0;
+			return _socket_error_from_os(errno);
 		return res;
 	}
 

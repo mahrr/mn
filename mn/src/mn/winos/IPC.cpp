@@ -12,6 +12,28 @@
 
 namespace mn::ipc
 {
+	inline static IO_ERROR
+	_get_last_error()
+	{
+		auto err = GetLastError();
+		if (err == 0)
+			return IO_ERROR_NONE;
+
+		switch (err)
+		{
+		case ERROR_ACCESS_DENIED:
+		case ERROR_SHARING_VIOLATION:
+			return IO_ERROR_PERMISSION_DENIED;
+		case ERROR_NO_DATA:
+			return IO_ERROR_CLOSED;
+		case ERROR_TIMEOUT:
+		case WAIT_TIMEOUT:
+			return IO_ERROR_TIMEOUT;
+		default:
+			return IO_ERROR_UNKNOWN;
+		}
+	}
+
 	// API
 	Mutex
 	mutex_new(const Str& name)
@@ -72,22 +94,16 @@ namespace mn::ipc
 		sputnik_free(this);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	ISputnik::read(Block data)
 	{
 		return sputnik_read(this, data, INFINITE_TIMEOUT);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	ISputnik::write(Block data)
 	{
 		return sputnik_write(this, data);
-	}
-
-	int64_t
-	ISputnik::size()
-	{
-		return 0;
 	}
 
 	Sputnik
@@ -109,7 +125,6 @@ namespace mn::ipc
 		auto self = alloc_construct<ISputnik>();
 		self->winos_named_pipe = handle;
 		self->name = clone(name);
-		self->read_msg_size = 0;
 		return self;
 	}
 
@@ -132,7 +147,6 @@ namespace mn::ipc
 		auto self = alloc_construct<ISputnik>();
 		self->winos_named_pipe = handle;
 		self->name = clone(name);
-		self->read_msg_size = 0;
 		return self;
 	}
 
@@ -200,14 +214,13 @@ namespace mn::ipc
 		auto other = alloc_construct<ISputnik>();
 		other->winos_named_pipe = self->winos_named_pipe;
 		other->name = clone(self->name);
-		other->read_msg_size = 0;
 
 		self->winos_named_pipe = handle;
 
 		return other;
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	sputnik_read(Sputnik self, Block data, Timeout timeout)
 	{
 		DWORD bytes_read = 0;
@@ -232,17 +245,20 @@ namespace mn::ipc
 		auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
 		worker_block_clear();
 		if (wakeup == WAIT_TIMEOUT)
+		{
 			CancelIo(self->winos_named_pipe);
+			return IO_ERROR_TIMEOUT;
+		}
 		CloseHandle(overlapped.hEvent);
 		return overlapped.InternalHigh;
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	sputnik_write(Sputnik self, Block data)
 	{
 		DWORD bytes_written = 0;
 		worker_block_ahead();
-		WriteFile(
+		auto res = WriteFile(
 			(HANDLE)self->winos_named_pipe,
 			data.ptr,
 			DWORD(data.size),
@@ -250,6 +266,8 @@ namespace mn::ipc
 			NULL
 		);
 		worker_block_clear();
+		if (res == FALSE)
+			return _get_last_error();
 		return bytes_written;
 	}
 
@@ -260,67 +278,6 @@ namespace mn::ipc
 		FlushFileBuffers((HANDLE)self->winos_named_pipe);
 		auto res = DisconnectNamedPipe((HANDLE)self->winos_named_pipe);
 		worker_block_clear();
-		return res;
-	}
-
-	bool
-	sputnik_msg_write(Sputnik self, Block data)
-	{
-		uint64_t len = data.size;
-		auto res = sputnik_write(self, block_from(len));
-		res += sputnik_write(self, data);
-		return res == (data.size + sizeof(len));
-	}
-
-	Msg_Read_Return
-	sputnik_msg_read(Sputnik self, Block data, Timeout timeout)
-	{
-		// if we don't have any remaining bytes in the message
-		if(self->read_msg_size == 0)
-		{
-			uint8_t* it = (uint8_t*)&self->read_msg_size;
-			size_t read_size = sizeof(self->read_msg_size);
-			Timeout t = timeout;
-			while(read_size > 0)
-			{
-				auto res = sputnik_read(self, {it, read_size}, t);
-				if (res == 0)
-					return Msg_Read_Return{};
-				t = INFINITE_TIMEOUT;
-				it += res;
-				read_size -= res;
-			}
-		}
-
-		// try reading a block of the message
-		size_t read_size = data.size;
-		if(data.size > self->read_msg_size)
-			read_size = self->read_msg_size;
-		auto res = sputnik_read(self, {data.ptr, read_size}, timeout);
-		self->read_msg_size -= res;
-		return {res, self->read_msg_size};
-	}
-
-	Str
-	sputnik_msg_read_alloc(Sputnik self, Timeout timeout, Allocator allocator)
-	{
-		auto res = str_with_allocator(allocator);
-		if(self->read_msg_size != 0)
-			return res;
-
-		auto [consumed, remaining] = sputnik_msg_read(self, {}, timeout);
-		if (remaining == 0 && consumed == 0)
-			return res;
-
-		str_resize(res, remaining);
-		auto block = block_from(res);
-		while (remaining > 0)
-		{
-			auto [consumed2, remaining2] = sputnik_msg_read(self, block, timeout);
-			remaining -= consumed2;
-			block = block + consumed2;
-		}
-		mn_assert(remaining == 0);
 		return res;
 	}
 }

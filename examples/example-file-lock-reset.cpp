@@ -15,8 +15,8 @@ main()
 	mn::file_write_lock(f, 0, 8);
 
 	uint64_t v = 0;
-	auto r = mn::file_read(f, mn::block_from(v));
-	mn_assert(r == 8);
+	auto res = mn::file_read(f, mn::block_from(v));
+	mn_assert(res.val == 8);
 
 	mn::file_write_unlock(f, 0, 8);
 

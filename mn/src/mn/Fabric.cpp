@@ -975,7 +975,7 @@ namespace mn
 		}
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	IChan_Stream::read(Block data_out)
 	{
 		chan_stream_ref(this);
@@ -987,7 +987,7 @@ namespace mn
 			if (chan_stream_closed(this))
 			{
 				mutex_unlock(this->mtx);
-				return 0;
+				return IO_ERROR_CLOSED;
 			}
 
 			cond_var_wait(this->read_cv, this->mtx, [this]{
@@ -1014,7 +1014,7 @@ namespace mn
 		return read_size;
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	IChan_Stream::write(Block data_in)
 	{
 		chan_stream_ref(this);
@@ -1030,7 +1030,7 @@ namespace mn
 		}
 
 		if (chan_stream_closed(this))
-			panic("cannot write in a closed Chan_Stream");
+			return IO_ERROR_CLOSED;
 
 		// get the data
 		this->data_blob = data_in;

@@ -5,19 +5,19 @@
 namespace mn
 {
 	//API
-	size_t
+	Result<size_t, IO_ERROR>
 	stream_read(Stream self, Block data)
 	{
 		return self->read(data);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	stream_write(Stream self, Block data)
 	{
 		return self->write(data);
 	}
 
-	int64_t
+	Result<size_t, IO_ERROR>
 	stream_size(Stream self)
 	{
 		return self->size();

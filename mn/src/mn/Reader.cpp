@@ -150,7 +150,9 @@ namespace mn
 		size_t available_size = self->buffer.str.count - self->buffer.cursor;
 		if(available_size > 0)
 		{
-			read_size += memory_stream_read(&self->buffer, data);
+			auto [size, err] = memory_stream_read(&self->buffer, data);
+			if (err != IO_ERROR_NONE)
+				read_size += size;
 			request_size -= read_size;
 		}
 
@@ -162,7 +164,12 @@ namespace mn
 
 		memory_stream_clear(&self->buffer);
 		if(self->stream)
-			read_size += stream_read(self->stream, data + read_size);
+		{
+			auto [size, err] = stream_read(self->stream, data + read_size);
+			if (err != IO_ERROR_NONE)
+				read_size += size;
+			read_size += size;
+		}
 
 		self->consumed_bytes += read_size;
 		return read_size;
@@ -177,7 +184,9 @@ namespace mn
 	float
 	reader_progress(Reader reader)
 	{
-		int64_t size = stream_size(reader->stream);
+		auto [size, err] = stream_size(reader->stream);
+		if (err != IO_ERROR_NONE)
+			return 0.0f;
 		if (size == 0)
 			return 0.0f;
 		return float(reader->consumed_bytes) / float(size);

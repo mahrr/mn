@@ -392,26 +392,25 @@ namespace mn
 		dispose() override;
 
 		// tries to read into the data_out block and returns the actual number of read bytes
-		MN_EXPORT size_t
+		MN_EXPORT Result<size_t, IO_ERROR>
 		read(Block data_out) override;
 
 		// tried to write data_in block into the given stream and returns the actual number of written bytes
-		MN_EXPORT size_t
+		MN_EXPORT Result<size_t, IO_ERROR>
 		write(Block data_in) override;
 
 		// returns 0 because we don't know the size of the stream beforehand
-		int64_t
+		Result<size_t, IO_ERROR>
 		size() override
 		{
-			return 0;
+			return IO_ERROR_NOT_SUPPORTED;
 		};
 
 		// it always fails because a stream doesn't have cursor support
-		int64_t
+		Result<size_t, IO_ERROR>
 		cursor_operation(STREAM_CURSOR_OP, int64_t) override
 		{
-			mn_unreachable_msg("Chan_Stream doesn't support cursor operations");
-			return STREAM_CURSOR_ERROR;
+			return IO_ERROR_NOT_SUPPORTED;
 		}
 	};
 

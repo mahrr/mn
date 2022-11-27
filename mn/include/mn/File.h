@@ -12,7 +12,7 @@ namespace mn
 
 	// some forward declarations because this language require this kind of thing
 
-	MN_EXPORT int64_t
+	MN_EXPORT Result<size_t, IO_ERROR>
 	file_cursor_pos(File handle);
 
 	MN_EXPORT bool
@@ -39,16 +39,16 @@ namespace mn
 		MN_EXPORT virtual void
 		dispose() override;
 
-		MN_EXPORT virtual size_t
+		MN_EXPORT virtual Result<size_t, IO_ERROR>
 		read(Block data) override;
 
-		MN_EXPORT virtual size_t
+		MN_EXPORT virtual Result<size_t, IO_ERROR>
 		write(Block data) override;
 
-		MN_EXPORT virtual int64_t
+		MN_EXPORT virtual Result<size_t, IO_ERROR>
 		size() override;
 
-		virtual int64_t
+		virtual Result<size_t, IO_ERROR>
 		cursor_operation(STREAM_CURSOR_OP op, int64_t arg) override
 		{
 			switch (op)
@@ -69,7 +69,7 @@ namespace mn
 				return file_cursor_pos(this);
 			default:
 				mn_unreachable();
-				return STREAM_CURSOR_ERROR;
+				return IO_ERROR_UNKNOWN;
 			}
 		}
 	};
@@ -174,19 +174,19 @@ namespace mn
 	file_valid(File handle);
 
 	// writes the given block of bytes to the given file, and returns the written amount of bytes
-	MN_EXPORT size_t
+	MN_EXPORT Result<size_t, IO_ERROR>
 	file_write(File handle, Block data);
 
 	// reads from the file into the given block of bytes, and returns the read amount of bytes
-	MN_EXPORT size_t
+	MN_EXPORT Result<size_t, IO_ERROR>
 	file_read(File handle, Block data);
 
 	// returns the size of the file in bytes
-	MN_EXPORT int64_t
+	MN_EXPORT Result<size_t, IO_ERROR>
 	file_size(File handle);
 
 	// returns the cursor position of the given file
-	MN_EXPORT int64_t
+	MN_EXPORT Result<size_t, IO_ERROR>
 	file_cursor_pos(File handle);
 
 	// moves the file cursor by the given offset, and returns whether it succeeded

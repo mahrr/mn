@@ -157,7 +157,8 @@ namespace mn
 		_Stream_Back_Insert_Iterator&
 		operator=(char v)
 		{
-			written_bytes += stream_write(stream, Block{ &v, sizeof(v) });
+			auto [bytes, _] = stream_write(stream, Block{ &v, sizeof(v) });
+			written_bytes += bytes;
 			return *this;
 		}
 

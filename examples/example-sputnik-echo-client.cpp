@@ -6,24 +6,25 @@
 void
 byte_client(mn::ipc::Sputnik client, mn::Str& line)
 {
-	auto write_bytes = mn::ipc::sputnik_write(client, mn::block_from(line));
+	auto [write_bytes, write_err] = mn::ipc::sputnik_write(client, mn::block_from(line));
+	if (write_err)
+	{
+		mn::print("{}\n", mn::io_error_message(write_err));
+		return;
+	}
 	mn_assert_msg(write_bytes == line.count, "sputnik_write failed");
 
 	mn::str_resize(line, 1024);
-	auto read_bytes = mn::ipc::sputnik_read(client, mn::block_from(line), mn::INFINITE_TIMEOUT);
+	auto [read_bytes, read_err] = mn::ipc::sputnik_read(client, mn::block_from(line), mn::INFINITE_TIMEOUT);
+	if (read_err)
+	{
+		mn::print("{}\n", mn::io_error_message(read_err));
+		return;
+	}
 	mn_assert(read_bytes == write_bytes);
 
 	mn::str_resize(line, read_bytes);
 	mn::print("server: '{}'\n", line);
-}
-
-void
-msg_client(mn::ipc::Sputnik client, mn::Str& line)
-{
-	mn::ipc::sputnik_msg_write(client, mn::block_from(line));
-	auto msg = mn::ipc::sputnik_msg_read_alloc(client, mn::INFINITE_TIMEOUT);
-	mn::print("server: '{}'\n", line);
-	mn::str_free(msg);
 }
 
 int
@@ -47,9 +48,7 @@ main()
 		mn::print("you write: '{}'\n", line);
 
 		// client byte stream
-		//byte_client(client, line);
-		// client msg units
-		msg_client(client, line);
+		byte_client(client, line);
 		read_bytes = 1;
 	} while(read_bytes > 0);
 

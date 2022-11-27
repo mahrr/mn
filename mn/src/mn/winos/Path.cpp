@@ -26,11 +26,16 @@ namespace mn
 		if(file_valid(f) == false)
 			panic("cannot read file \"{}\"", filename);
 
-		buf_resize(str, file_size(f) + 1);
+		auto [size, size_err] = file_size(f);
+		if (size_err)
+			return str;
+
+		buf_resize(str, size + 1);
 		--str.count;
 		str.ptr[str.count] = '\0';
 
-		[[maybe_unused]] size_t read_size = file_read(f, Block { str.ptr, str.count });
+		[[maybe_unused]] auto [read_size, read_err] = file_read(f, Block { str.ptr, str.count });
+		mn_assert(read_err == IO_ERROR_NONE);
 		mn_assert(read_size == str.count);
 
 		file_close(f);

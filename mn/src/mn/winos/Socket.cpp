@@ -64,7 +64,7 @@ namespace mn
 		}
 	}
 
-	inline static MN_SOCKET_ERROR
+	inline static IO_ERROR
 	_socket_error_from_os(int error)
 	{
 		switch(error)
@@ -75,14 +75,14 @@ namespace mn
 		case WSAEDISCON:
 		case WSAENETRESET:
 		case WSAESHUTDOWN:
-			return MN_SOCKET_ERROR_CONNECTION_CLOSED;
+			return IO_ERROR_CLOSED;
 		case WSAEFAULT:
 		case WSAEINVAL:
-			return MN_SOCKET_ERROR_INTERNAL_ERROR;
+			return IO_ERROR_INTERNAL_ERROR;
 		case WSAENOBUFS:
-			return MN_SOCKET_ERROR_OUT_OF_MEMORY;
+			return IO_ERROR_OUT_OF_MEMORY;
 		default:
-			return MN_SOCKET_ERROR_GENERIC_ERROR;
+			return IO_ERROR_UNKNOWN;
 		}
 	}
 
@@ -94,23 +94,16 @@ namespace mn
 		socket_close(this);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	ISocket::read(Block data)
 	{
-		auto [read_bytes, _] = socket_read(this, data, INFINITE_TIMEOUT);
-		return read_bytes;
+		return socket_read(this, data, INFINITE_TIMEOUT);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	ISocket::write(Block data)
 	{
 		return socket_write(this, data);
-	}
-
-	int64_t
-	ISocket::size()
-	{
-		return 0;
 	}
 
 	Socket
@@ -240,7 +233,7 @@ namespace mn
 		::shutdown(self->handle, SD_SEND);
 	}
 
-	Result<size_t, MN_SOCKET_ERROR>
+	Result<size_t, IO_ERROR>
 	socket_read(Socket self, Block data, Timeout timeout)
 	{
 		pollfd pfd_read{};
@@ -291,11 +284,11 @@ namespace mn
 		}
 		else
 		{
-			return MN_SOCKET_ERROR_TIMEOUT;
+			return IO_ERROR_TIMEOUT;
 		}
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	socket_write(Socket self, Block data)
 	{
 		size_t sent_bytes = 0;
@@ -320,6 +313,8 @@ namespace mn
 
 		if(status == 0)
 			return sent_bytes;
+		else if (status == SOCKET_ERROR)
+			return _socket_error_from_os(WSAGetLastError());
 		return 0;
 	}
 

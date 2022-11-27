@@ -13,6 +13,28 @@
 
 namespace mn
 {
+	inline static IO_ERROR
+	_get_last_error()
+	{
+		auto err = GetLastError();
+		if (err == 0)
+			return IO_ERROR_NONE;
+
+		switch (err)
+		{
+		case ERROR_ACCESS_DENIED:
+		case ERROR_SHARING_VIOLATION:
+			return IO_ERROR_PERMISSION_DENIED;
+		case ERROR_NO_DATA:
+			return IO_ERROR_CLOSED;
+		case ERROR_TIMEOUT:
+		case WAIT_TIMEOUT:
+			return IO_ERROR_TIMEOUT;
+		default:
+			return IO_ERROR_UNKNOWN;
+		}
+	}
+
 	inline static Str
 	_from_os_encoding(Block os_str, Allocator allocator)
 	{
@@ -101,7 +123,7 @@ namespace mn
 		free(this);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	IFile::read(Block data)
 	{
 		DWORD bytes_read = 0;
@@ -109,6 +131,8 @@ namespace mn
 		auto win_stdin = file_stdin();
 
 		worker_block_ahead();
+		mn_defer { worker_block_clear(); };
+
 		if (winos_handle == win_stdin->winos_handle)
 		{
 			constexpr size_t BUFFER_SIZE = 2048;
@@ -125,19 +149,24 @@ namespace mn
 
 			size_t wide_read = (data.size / sizeof(WCHAR)) < (BUFFER_SIZE / 2) ? (data.size / sizeof(WCHAR)) : (BUFFER_SIZE / 2);
 			DWORD read_chars_count = 0;
-			ReadConsoleW(winos_handle, wide_ptr, (DWORD)wide_read, &read_chars_count, NULL);
+			auto res = ReadConsoleW(winos_handle, wide_ptr, (DWORD)wide_read, &read_chars_count, NULL);
+			if (res == FALSE)
+				return _get_last_error();
 			bytes_read = WideCharToMultiByte(CP_UTF8, NULL, wide_ptr, read_chars_count, (LPSTR)data.ptr, (int)data.size, NULL, NULL);
 		}
 		else
 		{
-			ReadFile(winos_handle, data.ptr, DWORD(data.size), &bytes_read, NULL);
+			auto res = ReadFile(winos_handle, data.ptr, DWORD(data.size), &bytes_read, NULL);
+			if (res == FALSE)
+				return _get_last_error();
+			else if (bytes_read == 0)
+				return IO_ERROR_END_OF_FILE;
 		}
-		worker_block_clear();
 
 		return bytes_read;
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	IFile::write(Block data)
 	{
 		DWORD bytes_written = 0;
@@ -146,6 +175,8 @@ namespace mn
 		auto win_stderr = file_stderr();
 
 		worker_block_ahead();
+		mn_defer { worker_block_clear(); };
+
 		if (winos_handle == win_stdout->winos_handle ||
 			winos_handle == win_stderr->winos_handle)
 		{
@@ -154,32 +185,37 @@ namespace mn
 			if(GetConsoleMode(winos_handle, &mode) == 0)
 			{
 				// in case it's redirected then write to buffer
-				WriteFile(winos_handle, data.ptr, DWORD(data.size), &bytes_written, NULL);
+				auto res = WriteFile(winos_handle, data.ptr, DWORD(data.size), &bytes_written, NULL);
+				if (res == FALSE)
+					return _get_last_error();
 			}
 			else
 			{
 				auto os_str = _to_os_encoding(data, memory::tmp());
-				WriteConsoleW(winos_handle, os_str.ptr, (DWORD)(os_str.size / sizeof(WCHAR)), &bytes_written, NULL);
+				auto res = WriteConsoleW(winos_handle, os_str.ptr, (DWORD)(os_str.size / sizeof(WCHAR)), &bytes_written, NULL);
+				if (res == FALSE)
+					return _get_last_error();
 			}
 		}
 		else
 		{
-			WriteFile(winos_handle, data.ptr, DWORD(data.size), &bytes_written, NULL);
+			auto res = WriteFile(winos_handle, data.ptr, DWORD(data.size), &bytes_written, NULL);
+			if (res == FALSE)
+				return _get_last_error();
 		}
-		worker_block_clear();
 
 		return bytes_written;
 	}
 
-	int64_t
+	Result<size_t, IO_ERROR>
 	IFile::size()
 	{
-		LARGE_INTEGER size;
+		LARGE_INTEGER size{};
 		if(GetFileSizeEx(winos_handle, &size))
 		{
 			return *(int64_t*)(&size);
 		}
-		return -1;
+		return _get_last_error();
 	}
 
 	//helpers
@@ -345,19 +381,19 @@ namespace mn
 		return self->winos_handle != INVALID_HANDLE_VALUE;
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	file_write(File self, Block data)
 	{
 		return self->write(data);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	file_read(File self, Block data)
 	{
 		return self->read(data);
 	}
 
-	int64_t
+	Result<size_t, IO_ERROR>
 	file_size(File self)
 	{
 		LARGE_INTEGER size;
@@ -365,10 +401,10 @@ namespace mn
 		{
 			return *(int64_t*)(&size);
 		}
-		return -1;
+		return _get_last_error();
 	}
 
-	int64_t
+	Result<size_t, IO_ERROR>
 	file_cursor_pos(File self)
 	{
 		LARGE_INTEGER position, offset;
@@ -377,7 +413,7 @@ namespace mn
 		{
 			return *(int64_t*)(&position);
 		}
-		return -1;
+		return _get_last_error();
 	}
 
 	bool
@@ -525,7 +561,10 @@ namespace mn
 			break;
 		}
 
-		auto filesize = file_size(file);
+		auto [filesize, err] = file_size(file);
+		if (err)
+			return nullptr;
+
 		if (size == 0)
 			size = filesize - offset;
 

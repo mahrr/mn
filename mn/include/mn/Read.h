@@ -451,7 +451,7 @@ namespace mn
 		return reader_read(reader, block_from(value));
 	}
 
-	inline static size_t
+	inline static Result<size_t, IO_ERROR>
 	read_bin(Stream stream, Block value)
 	{
 		return stream_read(stream, value);

@@ -442,21 +442,22 @@ TEST_CASE("Pool general case")
 TEST_CASE("Memory_Stream general case")
 {
 	auto mem = mn::memory_stream_new();
-	CHECK(mn::memory_stream_size(mem) == 0);
-	CHECK(mn::memory_stream_cursor_pos(mem) == 0);
+
+	CHECK(mn::memory_stream_size(mem).val == 0);
+	CHECK(mn::memory_stream_cursor_pos(mem).val == 0);
 	mn::memory_stream_write(mem, mn::block_lit("Mostafa"));
-	CHECK(mn::memory_stream_size(mem) == 7);
-	CHECK(mn::memory_stream_cursor_pos(mem) == 7);
+	CHECK(mn::memory_stream_size(mem).val == 7);
+	CHECK(mn::memory_stream_cursor_pos(mem).val == 7);
 
 	char name[8] = { 0 };
-	CHECK(mn::memory_stream_read(mem, mn::block_from(name)) == 0);
-	CHECK(mn::memory_stream_cursor_pos(mem) == 7);
+	CHECK(mn::memory_stream_read(mem, mn::block_from(name)).val == 0);
+	CHECK(mn::memory_stream_cursor_pos(mem).val == 7);
 
 	mn::memory_stream_cursor_to_start(mem);
-	CHECK(mn::memory_stream_cursor_pos(mem) == 0);
+	CHECK(mn::memory_stream_cursor_pos(mem).val == 0);
 
-	CHECK(mn::memory_stream_read(mem, mn::block_from(name)) == 7);
-	CHECK(mn::memory_stream_cursor_pos(mem) == 7);
+	CHECK(mn::memory_stream_read(mem, mn::block_from(name)).val == 7);
+	CHECK(mn::memory_stream_cursor_pos(mem).val == 7);
 
 	CHECK(::strcmp(name, "Mostafa") == 0);
 	mn::memory_stream_free(mem);
@@ -1153,7 +1154,6 @@ TEST_CASE("zero init map")
 	mn::map_insert(table, 1, true);
 	CHECK(mn::map_lookup(table, 1)->value == true);
 	mn::map_free(table);
-
 }
 
 TEST_CASE("uuid uniqueness")

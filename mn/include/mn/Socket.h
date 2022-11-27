@@ -22,47 +22,6 @@ namespace mn
 		SOCKET_TYPE_UDP
 	};
 
-	// socket error modes
-	enum MN_SOCKET_ERROR
-	{
-		// no error
-		MN_SOCKET_ERROR_OK,
-		// something went wrong, but we don't check for it specifically for now
-		// note: this is sort of catch all category for all unhandled errors, any kind
-		// of errors except the ones listed below
-		MN_SOCKET_ERROR_GENERIC_ERROR,
-		// failed to allocate memory buffer
-		MN_SOCKET_ERROR_OUT_OF_MEMORY,
-		// internal mn error
-		MN_SOCKET_ERROR_INTERNAL_ERROR,
-		// function failed due to timeout
-		MN_SOCKET_ERROR_TIMEOUT,
-		// function faild becuase of failure to send/recv from socket
-		MN_SOCKET_ERROR_CONNECTION_CLOSED,
-	};
-
-	// converts the given socket error to a human readable message
-	inline static const char*
-	mn_socket_error_message(MN_SOCKET_ERROR e)
-	{
-		switch(e)
-		{
-		case MN_SOCKET_ERROR_OK:
-			return "no error";
-		case MN_SOCKET_ERROR_GENERIC_ERROR:
-			return "something went wrong, this is a general error message";
-		case MN_SOCKET_ERROR_OUT_OF_MEMORY:
-			return "failed to allocate memory buffer";
-		case MN_SOCKET_ERROR_INTERNAL_ERROR:
-			return "internal mn error";
-		case MN_SOCKET_ERROR_TIMEOUT:
-			return "error due to timeout";
-		default:
-			mn_unreachable();
-			return "something went wrong, this shouldn't happen!!!!!!";
-		}
-	}
-
 	// a socket handle
 	typedef struct ISocket* Socket;
 
@@ -75,20 +34,22 @@ namespace mn
 		MN_EXPORT virtual void
 		dispose() override;
 
-		MN_EXPORT virtual size_t
+		MN_EXPORT virtual Result<size_t, IO_ERROR>
 		read(Block data) override;
 
-		MN_EXPORT virtual size_t
+		MN_EXPORT virtual Result<size_t, IO_ERROR>
 		write(Block data) override;
 
-		MN_EXPORT virtual int64_t
-		size() override;
+		virtual Result<size_t, IO_ERROR>
+		size() override
+		{
+			return IO_ERROR_NOT_SUPPORTED;
+		}
 
-		virtual int64_t
+		virtual Result<size_t, IO_ERROR>
 		cursor_operation(STREAM_CURSOR_OP, int64_t) override
 		{
-			mn_unreachable_msg("sockets doesn't support cursor operations");
-			return STREAM_CURSOR_ERROR;
+			return IO_ERROR_NOT_SUPPORTED;
 		}
 	};
 
@@ -144,11 +105,11 @@ namespace mn
 
 	// tries to read from the given socket within the given timeout window and returns the number
 	// of read bytes or an error
-	MN_EXPORT Result<size_t, MN_SOCKET_ERROR>
+	MN_EXPORT Result<size_t, IO_ERROR>
 	socket_read(Socket self, Block data, Timeout timeout);
 
 	// writes the given block of bytes into the given socket and returns the number of written bytes
-	MN_EXPORT size_t
+	MN_EXPORT Result<size_t, IO_ERROR>
 	socket_write(Socket self, Block data);
 
 	// returns the file desriptor behind the given socket

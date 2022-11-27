@@ -13,15 +13,15 @@ serve_client(mn::Socket client)
 		mn::str_free(data);
 		mn::socket_close(client);
 	};
-	size_t read_bytes = 0, write_bytes = 0;
+	size_t read_bytes = 0;
 
 	do
 	{
 		mn::str_resize(data, 1024);
-		auto [read_bytes_count, err] = mn::socket_read(client, mn::block_from(data), mn::INFINITE_TIMEOUT);
-		if (err)
+		auto [read_bytes_count, read_err] = mn::socket_read(client, mn::block_from(data), mn::INFINITE_TIMEOUT);
+		if (read_err != mn::IO_ERROR_NONE)
 		{
-			mn::print("client disconnected");
+			mn::print("{}\n", mn::io_error_message(read_err));
 			break;
 		}
 		read_bytes = read_bytes_count;
@@ -29,8 +29,13 @@ serve_client(mn::Socket client)
 		if(read_bytes > 0)
 		{
 			mn::str_resize(data, read_bytes);
-			write_bytes = mn::socket_write(client, mn::block_from(data));
-			mn_assert_msg(write_bytes == read_bytes, "socket_write failed");
+			auto [written_bytes, write_err] = mn::socket_write(client, mn::block_from(data));
+			if (write_err != mn::IO_ERROR_NONE)
+			{
+				mn::print("{}\n", mn::io_error_message(write_err));
+				break;
+			}
+			mn_assert_msg(written_bytes == read_bytes, "socket_write failed");
 		}
 		else if (read_bytes == 0)
 		{

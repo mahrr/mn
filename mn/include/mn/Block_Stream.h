@@ -10,7 +10,7 @@ namespace mn
 	struct Block_Stream;
 
 	// just forward declaration because this language require this kind of thing
-	inline static size_t
+	inline static Result<size_t, IO_ERROR>
 	block_stream_read(Block_Stream& self, Block data);
 
 	// wraps a stream interface around a simple memory block, which allows you to use standard read, write, and cursor
@@ -26,28 +26,28 @@ namespace mn
 		{}
 
 		// reads into the given memory block and returns the amount of read memory in bytes
-		size_t
+		Result<size_t, IO_ERROR>
 		read(Block data) override
 		{
 			return block_stream_read(*this, data);
 		}
 
 		// block stream is a readonly one so it fails when you write into it by returning 0 bytes written
-		size_t
+		Result<size_t, IO_ERROR>
 		write(Block data) override
 		{
-			return 0;
+			return IO_ERROR_NOT_SUPPORTED;
 		}
 
 		// returns the size of the stream
-		int64_t
+		Result<size_t, IO_ERROR>
 		size() override
 		{
 			return data.size;
 		}
 
 		// performs the given operation on the cursor and returns the new value of the cursor
-		int64_t
+		Result<size_t, IO_ERROR>
 		cursor_operation(STREAM_CURSOR_OP op, int64_t arg) override
 		{
 			switch (op)
@@ -68,7 +68,7 @@ namespace mn
 				return this->cursor;
 			default:
 				mn_unreachable();
-				return STREAM_CURSOR_ERROR;
+				return IO_ERROR_UNKNOWN;
 			}
 		}
 	};
@@ -83,11 +83,11 @@ namespace mn
 	}
 
 	// reads from the block stream into the given memory block and returns the amount of read data in bytes
-	inline static size_t
+	inline static Result<size_t, IO_ERROR>
 	block_stream_read(Block_Stream& self, Block data)
 	{
 		if (size_t(self.cursor) >= self.data.size)
-			return 0;
+			return IO_ERROR_END_OF_FILE;
 
 		size_t available_size = self.data.size - self.cursor;
 		size_t read_size = available_size > data.size ? data.size : available_size;
@@ -97,14 +97,14 @@ namespace mn
 	}
 
 	// returns the size of the block stream in bytes
-	inline static int64_t
+	inline static size_t
 	block_stream_size(const Block_Stream& self)
 	{
 		return self.data.size;
 	}
 
 	// returns the current position of stream's cursor
-	inline static int64_t
+	inline static size_t
 	block_stream_cursor_pos(const Block_Stream& self)
 	{
 		return self.cursor;

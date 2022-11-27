@@ -11,7 +11,7 @@ namespace mn
 		free_from(str.allocator, this);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	IMemory_Stream::read(Block data)
 	{
 		mn_assert_msg(cursor >= 0, "Memory_Stream cursor is not valid");
@@ -26,7 +26,7 @@ namespace mn
 		return available_size;
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	IMemory_Stream::write(Block data)
 	{
 		mn_assert_msg(cursor >= 0, "Memory_Stream cursor is not valid");
@@ -37,10 +37,10 @@ namespace mn
 		return data.size;
 	}
 
-	int64_t
+	Result<size_t, IO_ERROR>
 	IMemory_Stream::size()
 	{
-		return int64_t(str.count);
+		return str.count;
 	}
 
 
@@ -59,19 +59,19 @@ namespace mn
 		self->dispose();
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	memory_stream_write(Memory_Stream self, Block data)
 	{
 		return self->write(data);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	memory_stream_read(Memory_Stream self, Block data)
 	{
 		return self->read(data);
 	}
 
-	int64_t
+	Result<size_t, IO_ERROR>
 	memory_stream_size(Memory_Stream self)
 	{
 		return self->str.count;
@@ -83,7 +83,7 @@ namespace mn
 		return self->cursor >= int64_t(self->str.count);
 	}
 
-	int64_t
+	Result<size_t, IO_ERROR>
 	memory_stream_cursor_pos(Memory_Stream self)
 	{
 		return self->cursor;
@@ -160,7 +160,7 @@ namespace mn
 		if(self->str.count - self->cursor < size)
 			memory_stream_reserve(self, size);
 
-		size_t read_size = stream_read(stream, Block { self->str.ptr + self->cursor, size });
+		auto [read_size, _] = stream_read(stream, Block { self->str.ptr + self->cursor, size });
 		self->str.count += read_size;
 		self->cursor += read_size;
 		return read_size;

@@ -62,25 +62,29 @@ namespace mn
 		free(this);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	IFile::read(Block data)
 	{
 		worker_block_ahead();
 		auto res = ::read(macos_handle, data.ptr, data.size);
 		worker_block_clear();
+		if (res == -1)
+			return IO_ERROR_UNKNOWN;
 		return res;
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	IFile::write(Block data)
 	{
 		worker_block_ahead();
 		auto res = ::write(macos_handle, data.ptr, data.size);
 		worker_block_clear();
+		if (res == -1)
+			return IO_ERROR_UNKNOWN;
 		return res;
 	}
 
-	int64_t
+	Result<size_t, IO_ERROR>
 	IFile::size()
 	{
 		struct stat file_stats;
@@ -88,7 +92,7 @@ namespace mn
 		{
 			return file_stats.st_size;
 		}
-		return -1;
+		return IO_ERROR_UNKNOWN;
 	}
 
 	Block
@@ -218,19 +222,19 @@ namespace mn
 		return self->macos_handle != -1;
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	file_write(File self, Block data)
 	{
 		return self->write(data);
 	}
 
-	size_t
+	Result<size_t, IO_ERROR>
 	file_read(File self, Block data)
 	{
 		return self->read(data);
 	}
 
-	int64_t
+	Result<size_t, IO_ERROR>
 	file_size(File self)
 	{
 		struct stat file_stats;
@@ -238,10 +242,10 @@ namespace mn
 		{
 			return file_stats.st_size;
 		}
-		return -1;
+		return IO_ERROR_UNKNOWN;
 	}
 
-	int64_t
+	Result<size_t, IO_ERROR>
 	file_cursor_pos(File self)
 	{
 		off_t offset = 0;
@@ -371,12 +375,15 @@ namespace mn
 			break;
 		}
 
-		auto filesize = file_size(file);
+		auto [filesize, err] = file_size(file);
+		if (err)
+			return nullptr;
+
 		if (size == 0)
 		{
 			size = filesize - offset;
 		}
-		else if (size > filesize)
+		else if (size_t(size) > filesize)
 		{
 			auto res = ::ftruncate(file->macos_handle, offset + size);
 			if (res != 0)
