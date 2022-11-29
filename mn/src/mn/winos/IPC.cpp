@@ -89,25 +89,25 @@ namespace mn::ipc
 
 
 	void
-	ISputnik::dispose()
+	ILocal_Socket::dispose()
 	{
-		sputnik_free(this);
+		local_socket_free(this);
 	}
 
 	Result<size_t, IO_ERROR>
-	ISputnik::read(Block data)
+	ILocal_Socket::read(Block data)
 	{
-		return sputnik_read(this, data, INFINITE_TIMEOUT);
+		return local_socket_read(this, data, INFINITE_TIMEOUT);
 	}
 
 	Result<size_t, IO_ERROR>
-	ISputnik::write(Block data)
+	ILocal_Socket::write(Block data)
 	{
-		return sputnik_write(this, data);
+		return local_socket_write(this, data);
 	}
 
-	Sputnik
-	sputnik_new(const Str& name)
+	Local_Socket
+	local_socket_new(const Str& name)
 	{
 		auto pipename = to_os_encoding(str_tmpf("\\\\.\\pipe\\{}", name));
 		auto handle = CreateNamedPipe(
@@ -122,14 +122,14 @@ namespace mn::ipc
 		);
 		if (handle == INVALID_HANDLE_VALUE)
 			return nullptr;
-		auto self = alloc_construct<ISputnik>();
+		auto self = alloc_construct<ILocal_Socket>();
 		self->winos_named_pipe = handle;
 		self->name = clone(name);
 		return self;
 	}
 
-	Sputnik
-	sputnik_connect(const Str& name)
+	Local_Socket
+	local_socket_connect(const Str& name)
 	{
 		auto pipename = to_os_encoding(str_tmpf("\\\\.\\pipe\\{}", name));
 		auto handle = CreateFile(
@@ -144,14 +144,14 @@ namespace mn::ipc
 		if (handle == INVALID_HANDLE_VALUE)
 			return nullptr;
 
-		auto self = alloc_construct<ISputnik>();
+		auto self = alloc_construct<ILocal_Socket>();
 		self->winos_named_pipe = handle;
 		self->name = clone(name);
 		return self;
 	}
 
 	void
-	sputnik_free(Sputnik self)
+	local_socket_free(Local_Socket self)
 	{
 		[[maybe_unused]] auto res = CloseHandle((HANDLE)self->winos_named_pipe);
 		mn_assert(res == TRUE);
@@ -160,15 +160,15 @@ namespace mn::ipc
 	}
 
 	bool
-	sputnik_listen(Sputnik)
+	local_socket_listen(Local_Socket)
 	{
 		// this function doesn't map to anything on windows since in socket api it's used to change the state of a socket
 		// to be able to accept connections, in named pipes on windows however this is unnecessary
 		return true;
 	}
 
-	Sputnik
-	sputnik_accept(Sputnik self, Timeout timeout)
+	Local_Socket
+	local_socket_accept(Local_Socket self, Timeout timeout)
 	{
 		// Wait for the Connection
 		{
@@ -211,7 +211,7 @@ namespace mn::ipc
 		);
 		if (handle == INVALID_HANDLE_VALUE)
 			return nullptr;
-		auto other = alloc_construct<ISputnik>();
+		auto other = alloc_construct<ILocal_Socket>();
 		other->winos_named_pipe = self->winos_named_pipe;
 		other->name = clone(self->name);
 
@@ -221,7 +221,7 @@ namespace mn::ipc
 	}
 
 	Result<size_t, IO_ERROR>
-	sputnik_read(Sputnik self, Block data, Timeout timeout)
+	local_socket_read(Local_Socket self, Block data, Timeout timeout)
 	{
 		DWORD bytes_read = 0;
 		OVERLAPPED overlapped{};
@@ -254,7 +254,7 @@ namespace mn::ipc
 	}
 
 	Result<size_t, IO_ERROR>
-	sputnik_write(Sputnik self, Block data)
+	local_socket_write(Local_Socket self, Block data)
 	{
 		DWORD bytes_written = 0;
 		worker_block_ahead();
@@ -272,7 +272,7 @@ namespace mn::ipc
 	}
 
 	bool
-	sputnik_disconnect(Sputnik self)
+	local_socket_disconnect(Local_Socket self)
 	{
 		worker_block_ahead();
 		FlushFileBuffers((HANDLE)self->winos_named_pipe);

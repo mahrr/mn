@@ -46,10 +46,9 @@ namespace mn::ipc
 
 	// OS communication primitives
 
-	// sputnik is an inter-process communicateion protocol
-	typedef struct ISputnik* Sputnik;
+	typedef struct ILocal_Socket* Local_Socket;
 
-	struct ISputnik final : IStream
+	struct ILocal_Socket final : IStream
 	{
 		union
 		{
@@ -80,51 +79,51 @@ namespace mn::ipc
 		}
 	};
 
-	// creates a new sputnik instance with the given name, if it fails it will return nullptr
-	MN_EXPORT Sputnik
-	sputnik_new(const Str& name);
+	// creates a new local socket instance with the given name, if it fails it will return nullptr
+	MN_EXPORT Local_Socket
+	local_socket_new(const Str& name);
 
-	// creates a new sputnik instance with the given name, if it fails it will return nullptr
-	inline static Sputnik
-	sputnik_new(const char* name)
+	// creates a new local socket instance with the given name, if it fails it will return nullptr
+	inline static Local_Socket
+	local_socket_new(const char* name)
 	{
-		return sputnik_new(str_lit(name));
+		return local_socket_new(str_lit(name));
 	}
 
-	// connects to a given sputnik instance with the given name, if it fails it will return nullptr
-	MN_EXPORT Sputnik
-	sputnik_connect(const Str& name);
+	// connects to a given local socket instance with the given name, if it fails it will return nullptr
+	MN_EXPORT Local_Socket
+	local_socket_connect(const Str& name);
 
-	// connects to a given sputnik instance with the given name, if it fails it will return nullptr
-	inline static Sputnik
-	sputnik_connect(const char* name)
+	// connects to a given local socket instance with the given name, if it fails it will return nullptr
+	inline static Local_Socket
+	local_socket_connect(const char* name)
 	{
-		return sputnik_connect(str_lit(name));
+		return local_socket_connect(str_lit(name));
 	}
 
-	// frees the given sputnik instance
+	// frees the given local socket instance
 	MN_EXPORT void
-	sputnik_free(Sputnik self);
+	local_socket_free(Local_Socket self);
 
-	// starts listening for connection on the given sputnik instance
+	// starts listening for connection on the given local socket instance
 	MN_EXPORT bool
-	sputnik_listen(Sputnik self);
+	local_socket_listen(Local_Socket self);
 
-	// tries to accept connection from the given sputnik instance within the given timeout window
+	// tries to accept connection from the given local socket instance within the given timeout window
 	// if it fails it will return nullptr
-	MN_EXPORT Sputnik
-	sputnik_accept(Sputnik self, Timeout timeout);
+	MN_EXPORT Local_Socket
+	local_socket_accept(Local_Socket self, Timeout timeout);
 
-	// tries to read from the given sputnik instance within the given timeout window
+	// tries to read from the given local socket instance within the given timeout window
 	// returns the number of read bytes
 	MN_EXPORT Result<size_t, IO_ERROR>
-	sputnik_read(Sputnik self, Block data, Timeout timeout);
+	local_socket_read(Local_Socket self, Block data, Timeout timeout);
 
-	// writes the given block of bytes into the given sputnik instance and returns the number of written bytes
+	// writes the given block of bytes into the given local socket instance and returns the number of written bytes
 	MN_EXPORT Result<size_t, IO_ERROR>
-	sputnik_write(Sputnik self, Block data);
+	local_socket_write(Local_Socket self, Block data);
 
-	// disconnects the given sputnik instance
+	// disconnects the given local socket instance
 	MN_EXPORT bool
-	sputnik_disconnect(Sputnik self);
+	local_socket_disconnect(Local_Socket self);
 }

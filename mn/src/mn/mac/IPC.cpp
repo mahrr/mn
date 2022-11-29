@@ -99,25 +99,25 @@ namespace mn::ipc
 	}
 
 	void
-	ISputnik::dispose()
+	ILocal_Socket::dispose()
 	{
-		sputnik_free(this);
+		local_socket_free(this);
 	}
 
 	Result<size_t, IO_ERROR>
-	ISputnik::read(Block data)
+	ILocal_Socket::read(Block data)
 	{
-		return sputnik_read(this, data, INFINITE_TIMEOUT);
+		return local_socket_read(this, data, INFINITE_TIMEOUT);
 	}
 
 	Result<size_t, IO_ERROR>
-	ISputnik::write(Block data)
+	ILocal_Socket::write(Block data)
 	{
-		return sputnik_write(this, data);
+		return local_socket_write(this, data);
 	}
 
-	Sputnik
-	sputnik_new(const Str& name)
+	Local_Socket
+	local_socket_new(const Str& name)
 	{
 		sockaddr_un addr{};
 		addr.sun_family = AF_LOCAL;
@@ -138,14 +138,14 @@ namespace mn::ipc
 			::close(handle);
 			return nullptr;
 		}
-		auto self = alloc_construct<ISputnik>();
+		auto self = alloc_construct<ILocal_Socket>();
 		self->linux_domain_socket = handle;
 		self->name = str_from_substr(name.ptr, name.ptr + name_length);
 		return self;
 	}
 
-	Sputnik
-	sputnik_connect(const Str& name)
+	Local_Socket
+	local_socket_connect(const Str& name)
 	{
 		sockaddr_un addr{};
 		addr.sun_family = AF_LOCAL;
@@ -167,14 +167,14 @@ namespace mn::ipc
 		}
 		worker_block_clear();
 
-		auto self = alloc_construct<ISputnik>();
+		auto self = alloc_construct<ILocal_Socket>();
 		self->linux_domain_socket = handle;
 		self->name = str_from_substr(name.ptr, name.ptr + name_length);
 		return self;
 	}
 
 	void
-	sputnik_free(Sputnik self)
+	local_socket_free(Local_Socket self)
 	{
 		::close(self->linux_domain_socket);
 		str_free(self->name);
@@ -182,7 +182,7 @@ namespace mn::ipc
 	}
 
 	bool
-	sputnik_listen(Sputnik self)
+	local_socket_listen(Local_Socket self)
 	{
 		worker_block_ahead();
 		int res = ::listen(self->linux_domain_socket, SOMAXCONN);
@@ -192,8 +192,8 @@ namespace mn::ipc
 		return true;
 	}
 
-	Sputnik
-	sputnik_accept(Sputnik self, Timeout timeout)
+	Local_Socket
+	local_socket_accept(Local_Socket self, Timeout timeout)
 	{
 		pollfd pfd_read{};
 		pfd_read.fd = self->linux_domain_socket;
@@ -218,14 +218,14 @@ namespace mn::ipc
 		auto handle = ::accept(self->linux_domain_socket, 0, 0);
 		if(handle == -1)
 			return nullptr;
-		auto other = alloc_construct<ISputnik>();
+		auto other = alloc_construct<ILocal_Socket>();
 		other->linux_domain_socket = handle;
 		other->name = clone(self->name);
 		return other;
 	}
 
 	Result<size_t, IO_ERROR>
-	sputnik_read(Sputnik self, Block data, Timeout timeout)
+	local_socket_read(Local_Socket self, Block data, Timeout timeout)
 	{
 		pollfd pfd_read{};
 		pfd_read.fd = self->linux_domain_socket;
@@ -251,7 +251,7 @@ namespace mn::ipc
 	}
 
 	Result<size_t, IO_ERROR>
-	sputnik_write(Sputnik self, Block data)
+	local_socket_write(Local_Socket self, Block data)
 	{
 		worker_block_ahead();
 		auto res = ::write(self->linux_domain_socket, data.ptr, data.size);
@@ -262,7 +262,7 @@ namespace mn::ipc
 	}
 
 	bool
-	sputnik_disconnect(Sputnik self)
+	local_socket_disconnect(Local_Socket self)
 	{
 		return ::unlink(self->name.ptr) == 0;
 	}

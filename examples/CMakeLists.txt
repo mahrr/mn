@@ -60,14 +60,14 @@ target_link_libraries(example-file-lock-reset
 		MoustaphaSaad::mn
 )
 
-add_executable(example-sputnik-echo-server example-sputnik-echo-server.cpp)
-target_link_libraries(example-sputnik-echo-server
+add_executable(example-local-socket-echo-server example-local-socket-echo-server.cpp)
+target_link_libraries(example-local-socket-echo-server
 	PRIVATE
 		MoustaphaSaad::mn
 )
 
-add_executable(example-sputnik-echo-client example-sputnik-echo-client.cpp)
-target_link_libraries(example-sputnik-echo-client
+add_executable(example-local-socket-echo-client example-local-socket-echo-client.cpp)
+target_link_libraries(example-local-socket-echo-client
 	PRIVATE
 		MoustaphaSaad::mn
 )
