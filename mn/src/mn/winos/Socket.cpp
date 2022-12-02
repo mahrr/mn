@@ -103,7 +103,7 @@ namespace mn
 	Result<size_t, IO_ERROR>
 	ISocket::write(Block data)
 	{
-		return socket_write(this, data);
+		return socket_write(this, data, INFINITE_TIMEOUT);
 	}
 
 	Socket
@@ -289,8 +289,20 @@ namespace mn
 	}
 
 	Result<size_t, IO_ERROR>
-	socket_write(Socket self, Block data)
+	socket_write(Socket self, Block data, Timeout timeout)
 	{
+		pollfd pfd_write{};
+		pfd_write.fd = self->handle;
+		pfd_write.events = POLLOUT;
+
+		INT milliseconds = 0;
+		if (timeout == INFINITE_TIMEOUT)
+			milliseconds = INFINITE;
+		else if (timeout == NO_TIMEOUT)
+			milliseconds = 0;
+		else
+			milliseconds = INT(timeout.milliseconds);
+
 		size_t sent_bytes = 0;
 
 		WSABUF data_buf{};
@@ -300,22 +312,34 @@ namespace mn
 		DWORD flags = 0;
 
 		worker_block_ahead();
-		int status = ::WSASend(
-			self->handle,
-			&data_buf,
-			1,
-			(LPDWORD)&sent_bytes,
-			flags,
-			NULL,
-			NULL
-		);
-		worker_block_clear();
-
-		if(status == 0)
-			return sent_bytes;
-		else if (status == SOCKET_ERROR)
+		mn_defer { worker_block_clear(); };
+		int ready = ::WSAPoll(&pfd_write, 1, milliseconds);
+		if (ready > 0)
+		{
+			int status = ::WSASend(
+				self->handle,
+				&data_buf,
+				1,
+				(LPDWORD)&sent_bytes,
+				flags,
+				NULL,
+				NULL
+			);
+			if(status == 0)
+				return sent_bytes;
+			else if (status == SOCKET_ERROR)
+				return _socket_error_from_os(WSAGetLastError());
+			else
+				return IO_ERROR_UNKNOWN;
+		}
+		else if (ready == SOCKET_ERROR)
+		{
 			return _socket_error_from_os(WSAGetLastError());
-		return 0;
+		}
+		else
+		{
+			return IO_ERROR_TIMEOUT;
+		}
 	}
 
 	int64_t

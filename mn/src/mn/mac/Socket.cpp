@@ -82,7 +82,7 @@ namespace mn
 	Result<size_t, IO_ERROR>
 	ISocket::write(Block data)
 	{
-		return socket_write(this, data);
+		return socket_write(this, data, INFINITE_TIMEOUT);
 	}
 
 	Socket
@@ -248,14 +248,40 @@ namespace mn
 	}
 
 	Result<size_t, IO_ERROR>
-	socket_write(Socket self, Block data)
+	socket_write(Socket self, Block data, Timeout timeout)
 	{
+		pollfd pfd_write{};
+		pfd_write.fd = self->handle;
+		pfd_write.events = POLLIN;
+
+		int milliseconds = 0;
+		if(timeout == INFINITE_TIMEOUT)
+			milliseconds = -1;
+		else if(timeout == NO_TIMEOUT)
+			milliseconds = 0;
+		else
+			milliseconds = int(timeout.milliseconds);
+
+		ssize_t res = 0;
 		worker_block_ahead();
-		auto res = ::send(self->handle, data.ptr, data.size, 0);
-		worker_block_clear();
-		if(res == -1)
+		mn_defer{worker_block_clear();};
+		int ready = ::poll(&pfd_write, 1, milliseconds);
+		if(ready > 0)
+		{
+			res = ::send(self->handle, data.ptr, data.size, 0);
+			if (res == -1)
+				return _socket_error_from_os(errno);
+			else
+				return res;
+		}
+		else if (ready == -1)
+		{
 			return _socket_error_from_os(errno);
-		return res;
+		}
+		else
+		{
+			return IO_ERROR_TIMEOUT;
+		}
 	}
 
 	int64_t

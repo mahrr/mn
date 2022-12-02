@@ -30,6 +30,8 @@ namespace mn
 		case ERROR_TIMEOUT:
 		case WAIT_TIMEOUT:
 			return IO_ERROR_TIMEOUT;
+		case ERROR_HANDLE_EOF:
+			return IO_ERROR_END_OF_FILE;
 		default:
 			return IO_ERROR_UNKNOWN;
 		}
@@ -126,85 +128,13 @@ namespace mn
 	Result<size_t, IO_ERROR>
 	IFile::read(Block data)
 	{
-		DWORD bytes_read = 0;
-
-		auto win_stdin = file_stdin();
-
-		worker_block_ahead();
-		mn_defer { worker_block_clear(); };
-
-		if (winos_handle == win_stdin->winos_handle)
-		{
-			constexpr size_t BUFFER_SIZE = 2048;
-			WCHAR static_buffer[BUFFER_SIZE];
-			WCHAR* wide_ptr = static_buffer;
-
-			Block dynamic_buffer{};
-			if (data.size / 2 >= BUFFER_SIZE)
-			{
-				dynamic_buffer = alloc(data.size, alignof(WCHAR));
-				wide_ptr = (WCHAR*)dynamic_buffer.ptr;
-			}
-			mn_defer{free(dynamic_buffer);};
-
-			size_t wide_read = (data.size / sizeof(WCHAR)) < (BUFFER_SIZE / 2) ? (data.size / sizeof(WCHAR)) : (BUFFER_SIZE / 2);
-			DWORD read_chars_count = 0;
-			auto res = ReadConsoleW(winos_handle, wide_ptr, (DWORD)wide_read, &read_chars_count, NULL);
-			if (res == FALSE)
-				return _get_last_error();
-			bytes_read = WideCharToMultiByte(CP_UTF8, NULL, wide_ptr, read_chars_count, (LPSTR)data.ptr, (int)data.size, NULL, NULL);
-		}
-		else
-		{
-			auto res = ReadFile(winos_handle, data.ptr, DWORD(data.size), &bytes_read, NULL);
-			if (res == FALSE)
-				return _get_last_error();
-			else if (bytes_read == 0)
-				return IO_ERROR_END_OF_FILE;
-		}
-
-		return bytes_read;
+		return file_read(this, data, INFINITE_TIMEOUT);
 	}
 
 	Result<size_t, IO_ERROR>
 	IFile::write(Block data)
 	{
-		DWORD bytes_written = 0;
-
-		auto win_stdout = file_stdout();
-		auto win_stderr = file_stderr();
-
-		worker_block_ahead();
-		mn_defer { worker_block_clear(); };
-
-		if (winos_handle == win_stdout->winos_handle ||
-			winos_handle == win_stderr->winos_handle)
-		{
-			// check whether it's a console or a redirected stuff
-			DWORD mode;
-			if(GetConsoleMode(winos_handle, &mode) == 0)
-			{
-				// in case it's redirected then write to buffer
-				auto res = WriteFile(winos_handle, data.ptr, DWORD(data.size), &bytes_written, NULL);
-				if (res == FALSE)
-					return _get_last_error();
-			}
-			else
-			{
-				auto os_str = _to_os_encoding(data, memory::tmp());
-				auto res = WriteConsoleW(winos_handle, os_str.ptr, (DWORD)(os_str.size / sizeof(WCHAR)), &bytes_written, NULL);
-				if (res == FALSE)
-					return _get_last_error();
-			}
-		}
-		else
-		{
-			auto res = WriteFile(winos_handle, data.ptr, DWORD(data.size), &bytes_written, NULL);
-			if (res == FALSE)
-				return _get_last_error();
-		}
-
-		return bytes_written;
+		return file_write(this, data, INFINITE_TIMEOUT);
 	}
 
 	Result<size_t, IO_ERROR>
@@ -382,15 +312,148 @@ namespace mn
 	}
 
 	Result<size_t, IO_ERROR>
-	file_write(File self, Block data)
+	file_write(File self, Block data, Timeout timeout)
 	{
-		return self->write(data);
+		DWORD bytes_written = 0;
+
+		auto win_stdout = file_stdout();
+		auto win_stderr = file_stderr();
+
+		worker_block_ahead();
+		mn_defer { worker_block_clear(); };
+
+		if (self->winos_handle == win_stdout->winos_handle ||
+			self->winos_handle == win_stderr->winos_handle)
+		{
+			// check whether it's a console or a redirected stuff
+			DWORD mode;
+			if(GetConsoleMode(self->winos_handle, &mode) == 0)
+			{
+				// in case it's redirected then write to buffer
+				OVERLAPPED overlapped{};
+				overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+				mn_defer { CloseHandle(overlapped.hEvent); };
+
+				auto res = WriteFile(self->winos_handle, data.ptr, DWORD(data.size), &bytes_written, &overlapped);
+				if (res == false && GetLastError() != ERROR_IO_PENDING)
+					return _get_last_error();
+
+				DWORD milliseconds = 0;
+				if (timeout == INFINITE_TIMEOUT)
+					milliseconds = INFINITE;
+				else if (timeout == NO_TIMEOUT)
+					milliseconds = 0;
+				else
+					milliseconds = DWORD(timeout.milliseconds);
+				auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
+				if (wakeup == WAIT_TIMEOUT)
+				{
+					CancelIo(self->winos_handle);
+					return IO_ERROR_TIMEOUT;
+				}
+
+				if (GetOverlappedResult(self->winos_handle, &overlapped, &bytes_written, false) == false)
+					return _get_last_error();
+			}
+			else
+			{
+				auto os_str = _to_os_encoding(data, memory::tmp());
+				auto res = WriteConsoleW(self->winos_handle, os_str.ptr, (DWORD)(os_str.size / sizeof(WCHAR)), &bytes_written, NULL);
+				if (res == FALSE)
+					return _get_last_error();
+			}
+		}
+		else
+		{
+			OVERLAPPED overlapped{};
+			overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+			mn_defer { CloseHandle(overlapped.hEvent); };
+
+			auto res = WriteFile(self->winos_handle, data.ptr, DWORD(data.size), &bytes_written, &overlapped);
+			if (res == false && GetLastError() != ERROR_IO_PENDING)
+				return _get_last_error();
+
+			DWORD milliseconds = 0;
+			if (timeout == INFINITE_TIMEOUT)
+				milliseconds = INFINITE;
+			else if (timeout == NO_TIMEOUT)
+				milliseconds = 0;
+			else
+				milliseconds = DWORD(timeout.milliseconds);
+			auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
+			if (wakeup == WAIT_TIMEOUT)
+			{
+				CancelIo(self->winos_handle);
+				return IO_ERROR_TIMEOUT;
+			}
+
+			if (GetOverlappedResult(self->winos_handle, &overlapped, &bytes_written, false) == false)
+				return _get_last_error();
+		}
+
+		return bytes_written;
 	}
 
 	Result<size_t, IO_ERROR>
-	file_read(File self, Block data)
+	file_read(File self, Block data, Timeout timeout)
 	{
-		return self->read(data);
+		DWORD bytes_read = 0;
+
+		auto win_stdin = file_stdin();
+
+		worker_block_ahead();
+		mn_defer { worker_block_clear(); };
+
+		if (self->winos_handle == win_stdin->winos_handle)
+		{
+			constexpr size_t BUFFER_SIZE = 2048;
+			WCHAR static_buffer[BUFFER_SIZE];
+			WCHAR* wide_ptr = static_buffer;
+
+			Block dynamic_buffer{};
+			if (data.size / 2 >= BUFFER_SIZE)
+			{
+				dynamic_buffer = alloc(data.size, alignof(WCHAR));
+				wide_ptr = (WCHAR*)dynamic_buffer.ptr;
+			}
+			mn_defer{free(dynamic_buffer);};
+
+			size_t wide_read = (data.size / sizeof(WCHAR)) < (BUFFER_SIZE / 2) ? (data.size / sizeof(WCHAR)) : (BUFFER_SIZE / 2);
+			DWORD read_chars_count = 0;
+			auto res = ReadConsoleW(self->winos_handle, wide_ptr, (DWORD)wide_read, &read_chars_count, NULL);
+			if (res == FALSE)
+				return _get_last_error();
+			bytes_read = WideCharToMultiByte(CP_UTF8, NULL, wide_ptr, read_chars_count, (LPSTR)data.ptr, (int)data.size, NULL, NULL);
+		}
+		else
+		{
+			OVERLAPPED overlapped{};
+			overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+			mn_defer { CloseHandle(overlapped.hEvent); };
+
+			auto res = ReadFile(self->winos_handle, data.ptr, DWORD(data.size), &bytes_read, NULL);
+			if (res == false && GetLastError() != ERROR_IO_PENDING)
+				return _get_last_error();
+
+			DWORD milliseconds = 0;
+			if (timeout == INFINITE_TIMEOUT)
+				milliseconds = INFINITE;
+			else if (timeout == NO_TIMEOUT)
+				milliseconds = 0;
+			else
+				milliseconds = DWORD(timeout.milliseconds);
+			auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
+			if (wakeup == WAIT_TIMEOUT)
+			{
+				CancelIo(self->winos_handle);
+				return IO_ERROR_TIMEOUT;
+			}
+
+			if (GetOverlappedResult(self->winos_handle, &overlapped, &bytes_read, false) == FALSE)
+				return _get_last_error();
+		}
+
+		return bytes_read;
 	}
 
 	Result<size_t, IO_ERROR>

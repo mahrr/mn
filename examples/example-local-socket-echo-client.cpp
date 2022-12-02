@@ -6,7 +6,7 @@
 void
 byte_client(mn::ipc::Local_Socket client, mn::Str& line)
 {
-	auto [write_bytes, write_err] = mn::ipc::local_socket_write(client, mn::block_from(line));
+	auto [write_bytes, write_err] = mn::ipc::local_socket_write(client, mn::block_from(line), mn::INFINITE_TIMEOUT);
 	if (write_err)
 	{
 		mn::print("{}\n", mn::io_error_message(write_err));

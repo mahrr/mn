@@ -34,7 +34,7 @@ namespace mn
 		--str.count;
 		str.ptr[str.count] = '\0';
 
-		[[maybe_unused]] auto [read_size, read_err] = file_read(f, Block { str.ptr, str.count });
+		[[maybe_unused]] auto [read_size, read_err] = file_read(f, Block { str.ptr, str.count }, mn::INFINITE_TIMEOUT);
 		mn_assert(read_err == IO_ERROR_NONE);
 		mn_assert(read_size == str.count);
 

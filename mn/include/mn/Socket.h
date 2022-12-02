@@ -110,7 +110,7 @@ namespace mn
 
 	// writes the given block of bytes into the given socket and returns the number of written bytes
 	MN_EXPORT Result<size_t, IO_ERROR>
-	socket_write(Socket self, Block data);
+	socket_write(Socket self, Block data, Timeout timeout);
 
 	// returns the file desriptor behind the given socket
 	MN_EXPORT int64_t

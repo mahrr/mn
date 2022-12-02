@@ -27,7 +27,7 @@ main()
 
 		mn::print("you write: '{}'\n", line);
 
-		auto [written_bytes, write_err] = mn::socket_write(socket, mn::block_from(line));
+		auto [written_bytes, write_err] = mn::socket_write(socket, mn::block_from(line), mn::INFINITE_TIMEOUT);
 		if (write_err != mn::IO_ERROR_NONE)
 		{
 			mn::print("{}\n", mn::io_error_message(write_err));

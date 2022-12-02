@@ -103,7 +103,7 @@ namespace mn::ipc
 	Result<size_t, IO_ERROR>
 	ILocal_Socket::write(Block data)
 	{
-		return local_socket_write(this, data);
+		return local_socket_write(this, data, INFINITE_TIMEOUT);
 	}
 
 	Local_Socket
@@ -254,21 +254,36 @@ namespace mn::ipc
 	}
 
 	Result<size_t, IO_ERROR>
-	local_socket_write(Local_Socket self, Block data)
+	local_socket_write(Local_Socket self, Block data, Timeout timeout)
 	{
 		DWORD bytes_written = 0;
+		OVERLAPPED overlapped{};
+		overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 		worker_block_ahead();
-		auto res = WriteFile(
+		WriteFile(
 			(HANDLE)self->winos_named_pipe,
 			data.ptr,
 			DWORD(data.size),
 			&bytes_written,
-			NULL
+			&overlapped
 		);
+
+		DWORD milliseconds = 0;
+		if (timeout == INFINITE_TIMEOUT)
+			milliseconds = INFINITE;
+		else if (timeout == NO_TIMEOUT)
+			milliseconds = 0;
+		else
+			milliseconds = DWORD(timeout.milliseconds);
+		auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
 		worker_block_clear();
-		if (res == FALSE)
-			return _get_last_error();
-		return bytes_written;
+		if (wakeup == WAIT_TIMEOUT)
+		{
+			CancelIo(self->winos_named_pipe);
+			return IO_ERROR_TIMEOUT;
+		}
+		CloseHandle(overlapped.hEvent);
+		return overlapped.InternalHigh;
 	}
 
 	bool

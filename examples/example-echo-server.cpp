@@ -29,7 +29,7 @@ serve_client(mn::Socket client)
 		if(read_bytes > 0)
 		{
 			mn::str_resize(data, read_bytes);
-			auto [written_bytes, write_err] = mn::socket_write(client, mn::block_from(data));
+			auto [written_bytes, write_err] = mn::socket_write(client, mn::block_from(data), mn::INFINITE_TIMEOUT);
 			if (write_err != mn::IO_ERROR_NONE)
 			{
 				mn::print("{}\n", mn::io_error_message(write_err));

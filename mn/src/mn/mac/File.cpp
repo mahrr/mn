@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <dirent.h>
 #include <limits.h>
+#include <poll.h>
 
 namespace mn
 {
@@ -65,23 +66,13 @@ namespace mn
 	Result<size_t, IO_ERROR>
 	IFile::read(Block data)
 	{
-		worker_block_ahead();
-		auto res = ::read(macos_handle, data.ptr, data.size);
-		worker_block_clear();
-		if (res == -1)
-			return IO_ERROR_UNKNOWN;
-		return res;
+		return file_read(this, data, INFINITE_TIMEOUT);
 	}
 
 	Result<size_t, IO_ERROR>
 	IFile::write(Block data)
 	{
-		worker_block_ahead();
-		auto res = ::write(macos_handle, data.ptr, data.size);
-		worker_block_clear();
-		if (res == -1)
-			return IO_ERROR_UNKNOWN;
-		return res;
+		return file_write(this, data, INFINITE_TIMEOUT);
 	}
 
 	Result<size_t, IO_ERROR>
@@ -223,15 +214,77 @@ namespace mn
 	}
 
 	Result<size_t, IO_ERROR>
-	file_write(File self, Block data)
+	file_write(File self, Block data, Timeout timeout)
 	{
-		return self->write(data);
+		pollfd pfd_write{};
+		pfd_write.fd = self->linux_handle;
+		pfd_write.events = POLLOUT;
+
+		int milliseconds = 0;
+		if(timeout == INFINITE_TIMEOUT)
+			milliseconds = -1;
+		else if(timeout == NO_TIMEOUT)
+			milliseconds = 0;
+		else
+			milliseconds = int(timeout.milliseconds);
+
+		worker_block_ahead();
+		mn_defer { worker_block_clear(); };
+
+		int ready = ::poll(&pfd_write, 1, milliseconds);
+		if (ready > 0)
+		{
+			auto res = ::write(self->linux_handle, data.ptr, data.size);
+			if (res == -1)
+				return IO_ERROR_UNKNOWN;
+			else
+				return res;
+		}
+		else if (ready == -1)
+		{
+			return IO_ERROR_UNKNOWN;
+		}
+		else
+		{
+			return IO_ERROR_TIMEOUT;
+		}
 	}
 
 	Result<size_t, IO_ERROR>
-	file_read(File self, Block data)
+	file_read(File self, Block data, Timeout timeout)
 	{
-		return self->read(data);
+		pollfd pfd_read{};
+		pfd_read.fd = self->linux_handle;
+		pfd_read.events = POLLIN;
+
+		int milliseconds = 0;
+		if(timeout == INFINITE_TIMEOUT)
+			milliseconds = -1;
+		else if(timeout == NO_TIMEOUT)
+			milliseconds = 0;
+		else
+			milliseconds = int(timeout.milliseconds);
+
+		worker_block_ahead();
+		mn_defer { worker_block_clear(); };
+
+		int ready = ::poll(&pfd_read, 1, milliseconds);
+		if (ready > 0)
+		{
+			auto res = ::read(self->linux_handle, data.ptr, data.size);
+			if (res == -1)
+				return IO_ERROR_UNKNOWN;
+			else
+				return res;
+		}
+		else if (ready == -1)
+		{
+			return IO_ERROR_UNKNOWN;
+		}
+		else
+		{
+			return IO_ERROR_TIMEOUT;
+		}
 	}
 
 	Result<size_t, IO_ERROR>

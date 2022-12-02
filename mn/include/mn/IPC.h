@@ -121,7 +121,7 @@ namespace mn::ipc
 
 	// writes the given block of bytes into the given local socket instance and returns the number of written bytes
 	MN_EXPORT Result<size_t, IO_ERROR>
-	local_socket_write(Local_Socket self, Block data);
+	local_socket_write(Local_Socket self, Block data, Timeout timeout);
 
 	// disconnects the given local socket instance
 	MN_EXPORT bool

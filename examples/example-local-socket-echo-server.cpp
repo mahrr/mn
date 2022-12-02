@@ -29,7 +29,7 @@ serve_client(mn::ipc::Local_Socket client)
 		if(read_bytes > 0)
 		{
 			mn::str_resize(data, read_bytes);
-			auto [write_bytes, write_err] = mn::ipc::local_socket_write(client, mn::block_from(data));
+			auto [write_bytes, write_err] = mn::ipc::local_socket_write(client, mn::block_from(data), mn::INFINITE_TIMEOUT);
 			if (write_err)
 			{
 				mn::print("{}\n", mn::io_error_message(write_err));

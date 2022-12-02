@@ -113,7 +113,7 @@ namespace mn::ipc
 	Result<size_t, IO_ERROR>
 	ILocal_Socket::write(Block data)
 	{
-		return local_socket_write(this, data);
+		return local_socket_write(this, data, INFINITE_TIMEOUT);
 	}
 
 	Local_Socket
@@ -251,12 +251,27 @@ namespace mn::ipc
 	}
 
 	Result<size_t, IO_ERROR>
-	local_socket_write(Local_Socket self, Block data)
+	local_socket_write(Local_Socket self, Block data, Timeout timeout)
 	{
+		pollfd pfd_write{};
+		pfd_write.fd = self->linux_domain_socket;
+		pfd_write.events = POLLIN;
+
+		int milliseconds = 0;
+		if(timeout == INFINITE_TIMEOUT)
+			milliseconds = -1;
+		else if(timeout == NO_TIMEOUT)
+			milliseconds = 0;
+		else
+			milliseconds = int(timeout.milliseconds);
+
+		ssize_t res = 0;
 		worker_block_ahead();
-		auto res = ::write(self->linux_domain_socket, data.ptr, data.size);
+		int ready = poll(&pfd_write, 1, milliseconds);
+		if(ready > 0)
+			res = ::write(self->linux_domain_socket, data.ptr, data.size);
 		worker_block_clear();
-		if (res == -1)
+		if(res == -1)
 			return _ipc_error_from_os(errno);
 		return res;
 	}
