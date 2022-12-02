@@ -1622,3 +1622,9 @@ TEST_CASE("Read integers")
 		mn::reader_free(reader);
 	}
 }
+
+TEST_CASE("buf clear of empty buffer")
+{
+	mn::Buf<int> buf{};
+	mn::buf_clear(buf);
+}

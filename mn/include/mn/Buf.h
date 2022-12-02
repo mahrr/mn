@@ -176,7 +176,8 @@ namespace mn
 	inline static void
 	buf_clear(Buf<T>& self)
 	{
-		self.allocator->release(Block{self.ptr, self.cap * sizeof(T)});
+		if (self.allocator)
+			self.allocator->release(Block{self.ptr, self.cap * sizeof(T)});
 		self.count = 0;
 	}
 
@@ -374,7 +375,8 @@ namespace mn
 
 		auto removed_count = end_it - front_it;
 		self.count -= removed_count;
-		self.allocator->release(Block{self.ptr + self.count, removed_count * sizeof(T)});
+		if (self.allocator)
+			self.allocator->release(Block{self.ptr + self.count, removed_count * sizeof(T)});
 	}
 
 	// removes the element found at the given index (will not keep order)
