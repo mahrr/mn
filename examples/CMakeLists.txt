@@ -122,3 +122,27 @@ target_link_libraries(example-queues
 	PRIVATE
 		MoustaphaSaad::mn
 )
+
+add_executable(example-local-socket-latency example-local-socket-latency.cpp)
+target_link_libraries(example-local-socket-latency
+	PRIVATE
+		MoustaphaSaad::mn
+)
+
+add_executable(example-local-socket-throughput example-local-socket-throughput.cpp)
+target_link_libraries(example-local-socket-throughput
+	PRIVATE
+		MoustaphaSaad::mn
+)
+
+add_executable(example-socket-latency example-socket-latency.cpp)
+target_link_libraries(example-socket-latency
+	PRIVATE
+		MoustaphaSaad::mn
+)
+
+add_executable(example-socket-throughput example-socket-throughput.cpp)
+target_link_libraries(example-socket-throughput
+	PRIVATE
+		MoustaphaSaad::mn
+)
