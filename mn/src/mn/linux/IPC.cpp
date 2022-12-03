@@ -256,7 +256,7 @@ namespace mn::ipc
 	{
 		pollfd pfd_write{};
 		pfd_write.fd = self->linux_domain_socket;
-		pfd_write.events = POLLIN;
+		pfd_write.events = POLLOUT;
 
 		int milliseconds = 0;
 		if(timeout == INFINITE_TIMEOUT)
