@@ -3,6 +3,7 @@
 #include "mn/Memory.h"
 #include "mn/Thread.h"
 #include "mn/Fabric.h"
+#include "mn/winos/internal/Mapped_File.h"
 
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
@@ -594,14 +595,6 @@ namespace mn
 
 		return UnlockFileEx(self->winos_handle, 0, size_low, size_high, &ov);
 	}
-
-	struct IMapped_File
-	{
-		Mapped_File file_view;
-		HANDLE file_map;
-		// if set this means that the mapped file owns it
-		File mn_file_handle;
-	};
 
 	Mapped_File*
 	file_mmap(File file, int64_t offset, int64_t size, IO_MODE io_mode)

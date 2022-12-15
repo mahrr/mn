@@ -7,6 +7,11 @@
 #include "mn/Debug.h"
 #include "mn/Log.h"
 #include "mn/Assert.h"
+#include "mn/linux/internal/Mutex.h"
+#include "mn/linux/internal/Mutex_RW.h"
+#include "mn/linux/internal/Thread.h"
+#include "mn/linux/internal/Waitgroup.h"
+#include "mn/linux/internal/Cond_Var.h"
 
 #include <pthread.h>
 #include <unistd.h>
@@ -24,14 +29,6 @@
 
 namespace mn
 {
-	struct IMutex
-	{
-		pthread_mutex_t handle;
-		const char* name;
-		const Source_Location* srcloc;
-		void* profile_user_data;
-	};
-
 	struct Leak_Allocator_Mutex
 	{
 		Source_Location srcloc;
@@ -468,14 +465,6 @@ namespace mn
 
 
 	//Mutex_RW API
-	struct IMutex_RW
-	{
-		pthread_rwlock_t lock;
-		const char* name;
-		const Source_Location* srcloc;
-		void* profile_user_data;
-	};
-
 	Mutex_RW
 	mutex_rw_new_with_srcloc(const Source_Location* srcloc)
 	{
@@ -574,14 +563,6 @@ namespace mn
 
 
 	//Thread
-	struct IThread
-	{
-		pthread_t handle;
-		Thread_Func func;
-		void* user_data;
-		const char* name;
-	};
-
 	void*
 	_thread_start(void* user_data)
 	{
@@ -643,11 +624,6 @@ namespace mn
 
 
 	// Condition Variables
-	struct ICond_Var
-	{
-		pthread_cond_t cv;
-	};
-
 	Cond_Var
 	cond_var_new()
 	{
@@ -709,13 +685,6 @@ namespace mn
 	}
 
 	// Waitgroup
-	struct IWaitgroup
-	{
-		int count;
-		pthread_mutex_t mtx;
-		pthread_cond_t cv;
-	};
-
 	Waitgroup
 	waitgroup_new()
 	{

@@ -2,6 +2,7 @@
 #include "mn/OS.h"
 #include "mn/Fabric.h"
 #include "mn/Assert.h"
+#include "mn/linux/internal/Mapped_File.h"
 
 #define _LARGEFILE64_SOURCE 1
 #include <sys/sysinfo.h>
@@ -399,13 +400,6 @@ namespace mn
 		fl.l_len = size;
 		return fcntl(self->linux_handle, F_SETLK, &fl) != -1;
 	}
-
-	struct IMapped_File
-	{
-		Mapped_File file_view;
-		// if set this means that the mapped file owns it
-		File mn_file_handle;
-	};
 
 	Mapped_File*
 	file_mmap(File file, int64_t offset, int64_t size, IO_MODE io_mode)

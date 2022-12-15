@@ -6,6 +6,11 @@
 #include "mn/Debug.h"
 #include "mn/Log.h"
 #include "mn/Assert.h"
+#include "mn/winos/internal/Mutex.h"
+#include "mn/winos/internal/Mutex_RW.h"
+#include "mn/winos/internal/Thread.h"
+#include "mn/winos/internal/Waitgroup.h"
+#include "mn/winos/internal/Cond_Var.h"
 
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
@@ -15,14 +20,6 @@
 
 namespace mn
 {
-	struct IMutex
-	{
-		const Source_Location* srcloc;
-		const char* name;
-		CRITICAL_SECTION cs;
-		void* profile_user_data;
-	};
-
 	struct Leak_Allocator_Mutex
 	{
 		Source_Location srcloc;
@@ -447,14 +444,6 @@ namespace mn
 
 
 	//Mutex_RW API
-	struct IMutex_RW
-	{
-		SRWLOCK lock;
-		const char* name;
-		const Source_Location* srcloc;
-		void* profile_user_data;
-	};
-
 	Mutex_RW
 	mutex_rw_new_with_srcloc(const Source_Location* srcloc)
 	{
@@ -552,15 +541,6 @@ namespace mn
 
 
 	//Thread API
-	struct IThread
-	{
-		HANDLE handle;
-		DWORD id;
-		Thread_Func func;
-		void* user_data;
-		const char* name;
-	};
-
 	DWORD WINAPI
 	_thread_start(LPVOID user_data)
 	{
@@ -670,11 +650,6 @@ namespace mn
 
 
 	// Condition Variable
-	struct ICond_Var
-	{
-		CONDITION_VARIABLE cv;
-	};
-
 	Cond_Var
 	cond_var_new()
 	{
@@ -736,13 +711,6 @@ namespace mn
 	}
 
 	// Waitgroup
-	struct IWaitgroup
-	{
-		int count;
-		CRITICAL_SECTION cs;
-		CONDITION_VARIABLE cv;
-	};
-
 	Waitgroup
 	waitgroup_new()
 	{

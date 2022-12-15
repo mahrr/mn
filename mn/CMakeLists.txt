@@ -94,6 +94,12 @@ if(WIN32)
 		src/mn/winos/Library.cpp
 		src/mn/winos/Process.cpp
 		src/mn/winos/UUID.cpp
+		src/mn/winos/internal/Cond_Var.h
+		src/mn/winos/internal/Mapped_File.h
+		src/mn/winos/internal/Mutex_RW.h
+		src/mn/winos/internal/Mutex.h
+		src/mn/winos/internal/Thread.h
+		src/mn/winos/internal/Waitgroup.h
 	)
 elseif(UNIX AND NOT APPLE)
 	set(SOURCE_FILES ${SOURCE_FILES}
@@ -107,6 +113,12 @@ elseif(UNIX AND NOT APPLE)
 		src/mn/linux/Library.cpp
 		src/mn/linux/Process.cpp
 		src/mn/linux/UUID.cpp
+		src/mn/linux/internal/Cond_Var.h
+		src/mn/linux/internal/Mapped_File.h
+		src/mn/linux/internal/Mutex_RW.h
+		src/mn/linux/internal/Mutex.h
+		src/mn/linux/internal/Thread.h
+		src/mn/linux/internal/Waitgroup.h
 	)
 elseif(APPLE)
 	enable_language(OBJCXX)
@@ -122,6 +134,12 @@ elseif(APPLE)
 		src/mn/mac/Library.cpp
 		src/mn/mac/Process.cpp
 		src/mn/mac/UUID.cpp
+		src/mn/mac/internal/Cond_Var.h
+		src/mn/mac/internal/Mapped_File.h
+		src/mn/mac/internal/Mutex_RW.h
+		src/mn/mac/internal/Mutex.h
+		src/mn/mac/internal/Thread.h
+		src/mn/mac/internal/Waitgroup.h
 	)
 endif()
 
