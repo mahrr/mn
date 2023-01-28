@@ -276,44 +276,47 @@ namespace mn
 			_worker_pause(blocking_worker);
 
 		// move the blocking workers out
-		for (auto blocking_worker: blocking_workers)
 		{
-			Ring<Fabric_Task> job_q{};
+			mutex_lock(self->mtx);
+			mn_defer{mutex_unlock(self->mtx);};
+
+			for (auto blocking_worker: blocking_workers)
 			{
-				mutex_lock(blocking_worker->mtx);
-				mn_defer{mutex_unlock(blocking_worker->mtx);};
-
-				job_q = blocking_worker->job_q;
-				blocking_worker->job_q = ring_new<Fabric_Task>();
-			}
-
-			{
-				mutex_lock(self->mtx);
-				mn_defer{mutex_unlock(self->mtx);};
-
-				// find a suitable worker
-				if (self->ready_side_workers.count > 0)
+				Ring<Fabric_Task> job_q{};
 				{
-					auto new_worker = buf_top(self->ready_side_workers);
-					buf_pop(self->ready_side_workers);
+					mutex_lock(blocking_worker->mtx);
+					mn_defer{mutex_unlock(blocking_worker->mtx);};
 
-					new_worker->fabric_index = blocking_worker->fabric_index;
-					self->workers[blocking_worker->fabric_index] = new_worker;
-					ring_free(new_worker->job_q);
-					new_worker->job_q = job_q;
-
-					_worker_resume(new_worker);
+					job_q = blocking_worker->job_q;
+					blocking_worker->job_q = ring_new<Fabric_Task>();
 				}
-				else
-				{
-					auto new_worker = _worker_new(
-						strf("{} worker #{}", self->name, self->worker_id_generator++),
-						self,
-						blocking_worker->fabric_index,
-						job_q
-					);
 
-					self->workers[blocking_worker->fabric_index] = new_worker;
+				{
+					// find a suitable worker
+					if (self->ready_side_workers.count > 0)
+					{
+						auto new_worker = buf_top(self->ready_side_workers);
+						buf_pop(self->ready_side_workers);
+
+						new_worker->fabric_index = blocking_worker->fabric_index;
+						self->workers[blocking_worker->fabric_index] = new_worker;
+						mn_assert(new_worker->job_q.count == 0);
+						ring_free(new_worker->job_q);
+						new_worker->job_q = job_q;
+
+						_worker_resume(new_worker);
+					}
+					else
+					{
+						auto new_worker = _worker_new(
+							strf("{} worker #{}", self->name, self->worker_id_generator++),
+							self,
+							blocking_worker->fabric_index,
+							job_q
+						);
+
+						self->workers[blocking_worker->fabric_index] = new_worker;
+					}
 				}
 			}
 		}
@@ -350,44 +353,47 @@ namespace mn
 			_worker_pause(blocking_worker);
 
 		// move the blocking workers out
-		for (auto blocking_worker: blocking_workers)
 		{
-			Ring<Fabric_Task> job_q{};
+			mutex_lock(self->mtx);
+			mn_defer{mutex_unlock(self->mtx);};
+
+			for (auto blocking_worker: blocking_workers)
 			{
-				mutex_lock(blocking_worker->mtx);
-				mn_defer{mutex_unlock(blocking_worker->mtx);};
-
-				job_q = blocking_worker->job_q;
-				blocking_worker->job_q = ring_new<Fabric_Task>();
-			}
-
-			{
-				mutex_lock(self->mtx);
-				mn_defer{mutex_unlock(self->mtx);};
-
-				// find a suitable worker
-				if (self->ready_side_workers.count > 0)
+				Ring<Fabric_Task> job_q{};
 				{
-					auto new_worker = buf_top(self->ready_side_workers);
-					buf_pop(self->ready_side_workers);
+					mutex_lock(blocking_worker->mtx);
+					mn_defer{mutex_unlock(blocking_worker->mtx);};
 
-					new_worker->fabric_index = blocking_worker->fabric_index;
-					self->workers[blocking_worker->fabric_index] = new_worker;
-					ring_free(new_worker->job_q);
-					new_worker->job_q = job_q;
-
-					_worker_resume(new_worker);
+					job_q = blocking_worker->job_q;
+					blocking_worker->job_q = ring_new<Fabric_Task>();
 				}
-				else
-				{
-					auto new_worker = _worker_new(
-						strf("{} worker #{}", self->name, self->worker_id_generator++),
-						self,
-						blocking_worker->fabric_index,
-						job_q
-					);
 
-					self->workers[blocking_worker->fabric_index] = new_worker;
+				{
+					// find a suitable worker
+					if (self->ready_side_workers.count > 0)
+					{
+						auto new_worker = buf_top(self->ready_side_workers);
+						buf_pop(self->ready_side_workers);
+
+						new_worker->fabric_index = blocking_worker->fabric_index;
+						self->workers[blocking_worker->fabric_index] = new_worker;
+						mn_assert(new_worker->job_q.count == 0);
+						ring_free(new_worker->job_q);
+						new_worker->job_q = job_q;
+
+						_worker_resume(new_worker);
+					}
+					else
+					{
+						auto new_worker = _worker_new(
+							strf("{} worker #{}", self->name, self->worker_id_generator++),
+							self,
+							blocking_worker->fabric_index,
+							job_q
+						);
+
+						self->workers[blocking_worker->fabric_index] = new_worker;
+					}
 				}
 			}
 		}
