@@ -8,6 +8,8 @@
 #include "mn/Fmt.h"
 #include "mn/Assert.h"
 
+#include <fmt/color.h>
+
 #include <stdio.h>
 
 namespace mn
@@ -168,7 +170,7 @@ namespace mn
 		if (LOG.debug)
 			LOG.debug(LOG.self, msg);
 		else
-			printerr("[debug]: {}\n", msg);
+			printerr("[{}]: {}\n", fmt::styled("debug", fmt::fg(fmt::color::green) | fmt::emphasis::bold), msg);
 	}
 
 	void
@@ -177,7 +179,7 @@ namespace mn
 		if (LOG.info)
 			LOG.info(LOG.self, msg);
 		else
-			printerr("[info]: {}\n", msg);
+			printerr("[{}]: {}\n", fmt::styled("info", fmt::fg(fmt::color::white) | fmt::emphasis::bold), msg);
 	}
 
 	void
@@ -186,7 +188,7 @@ namespace mn
 		if (LOG.warning)
 			LOG.warning(LOG.self, msg);
 		else
-			printerr("[warning]: {}\n", msg);
+			printerr("[{}]: {}\n", fmt::styled("warning", fmt::fg(fmt::color::yellow) | fmt::emphasis::bold), msg);
 	}
 
 	void
@@ -195,7 +197,7 @@ namespace mn
 		if (LOG.error)
 			LOG.error(LOG.self, msg);
 		else
-			printerr("[error]: {}\n", msg);
+			printerr("[{}]: {}\n", fmt::styled("error", fmt::fg(fmt::color::red) | fmt::emphasis::bold), msg);
 	}
 
 	void
@@ -204,7 +206,7 @@ namespace mn
 		if (LOG.critical)
 			LOG.critical(LOG.self, msg);
 		else
-			printerr("[critical]: {}\n", msg);
+			printerr("[{}]: {}\n", fmt::styled("critical", fmt::fg(fmt::color::red) | fmt::emphasis::bold), msg);
 	}
 
 	Thread_Profile_Interface

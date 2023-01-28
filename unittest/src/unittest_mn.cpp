@@ -1628,3 +1628,11 @@ TEST_CASE("buf clear of empty buffer")
 	mn::Buf<int> buf{};
 	mn::buf_clear(buf);
 }
+
+TEST_CASE("log colors")
+{
+	mn::log_debug("This is a debug message");
+	mn::log_info("This is an info message");
+	mn::log_warning("This is a warning message");
+	mn::log_error("This is an error message");
+}

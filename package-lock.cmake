@@ -4,7 +4,7 @@
 # fmt
 CPMDeclarePackage(fmt
   NAME fmt
-  GIT_TAG 8.0.1
+  GIT_TAG 9.1.0
   GIT_REPOSITORY https://github.com/fmtlib/fmt.git
   GIT_SHALLOW TRUE
 )
