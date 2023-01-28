@@ -117,10 +117,15 @@ namespace mn
 			: str(&s)
 		{}
 
+		~_Str_Back_Insert_Iterator()
+		{
+			str_null_terminate(*str);
+		}
+
 		_Str_Back_Insert_Iterator&
 		operator=(char v)
 		{
-			str_push(*str, v);
+			buf_push(*str, v);
 			return *this;
 		}
 

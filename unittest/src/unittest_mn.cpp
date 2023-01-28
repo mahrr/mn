@@ -685,6 +685,15 @@ TEST_CASE("Fmt")
 		mn::str_free(n);
 		destruct(m);
 	}
+
+	SUBCASE("format unicode characters")
+	{
+		auto c = u8"™";
+		auto str = mn::strf("{}", c);
+		mn::print("{}", str);
+		CHECK(str == "™");
+		mn::str_free(str);
+	}
 }
 
 TEST_CASE("Deque")
