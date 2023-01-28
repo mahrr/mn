@@ -195,6 +195,12 @@ namespace mn
 		mutex_lock(self->mtx);
 		mn_defer{mutex_unlock(self->mtx);};
 
+		auto state = self->atomic_state.load();
+		if (state == IWorker::STATE_STOP_REQUEST ||
+			state == IWorker::STATE_STOP_ACKNOWLEDGED)
+		{
+			return;
+		}
 		mn_assert(self->atomic_state == IWorker::STATE_RUNNING);
 
 		self->atomic_state = IWorker::STATE_PAUSED;
