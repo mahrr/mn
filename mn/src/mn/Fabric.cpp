@@ -861,9 +861,6 @@ namespace mn
 			cond_var_notify(self->cv);
 		}
 
-		thread_join(self->sysmon);
-		thread_free(self->sysmon);
-
 		for (auto worker : self->workers)
 			_worker_stop(worker);
 
@@ -872,6 +869,9 @@ namespace mn
 
 		for (auto worker : self->ready_side_workers)
 			_worker_stop(worker);
+
+		thread_join(self->sysmon);
+		thread_free(self->sysmon);
 
 		for (auto worker : self->workers)
 			_worker_free(worker);

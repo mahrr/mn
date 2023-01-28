@@ -1638,6 +1638,20 @@ TEST_CASE("buf clear of empty buffer")
 	mn::buf_clear(buf);
 }
 
+TEST_CASE("immediate call to fabric_free")
+{
+	mn::Fabric_Settings fabric_settings{};
+	fabric_settings.workers_count = 1;
+
+	auto fabric = mn::fabric_new(fabric_settings);
+	mn_defer{mn::fabric_free(fabric);};
+
+	mn::go(fabric, [&fabric] {
+		auto future = mn::future_go(fabric, [] {});  // Second job gets scheduled on the same worker (we only have one)
+		mn::future_free(future);  // Wait on the second job, but it cannot start until we finish
+	});
+}
+
 TEST_CASE("log colors")
 {
 	mn::log_debug("This is a debug message");
