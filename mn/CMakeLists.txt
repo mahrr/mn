@@ -74,7 +74,6 @@ set(SOURCE_FILES
 	src/mn/Context.cpp
 	src/mn/Fabric.cpp
 	src/mn/RAD.cpp
-	src/mn/SIMD.cpp
 	src/mn/Json.cpp
 	src/mn/Regex.cpp
 	src/mn/Assert.cpp
@@ -94,6 +93,7 @@ if(WIN32)
 		src/mn/winos/Library.cpp
 		src/mn/winos/Process.cpp
 		src/mn/winos/UUID.cpp
+		src/mn/winos/SIMD.cpp
 		src/mn/winos/internal/Cond_Var.h
 		src/mn/winos/internal/Mapped_File.h
 		src/mn/winos/internal/Mutex_RW.h
@@ -113,6 +113,7 @@ elseif(UNIX AND NOT APPLE)
 		src/mn/linux/Library.cpp
 		src/mn/linux/Process.cpp
 		src/mn/linux/UUID.cpp
+		src/mn/linux/SIMD.cpp
 		src/mn/linux/internal/Cond_Var.h
 		src/mn/linux/internal/Mapped_File.h
 		src/mn/linux/internal/Mutex_RW.h
@@ -134,6 +135,7 @@ elseif(APPLE)
 		src/mn/mac/Library.cpp
 		src/mn/mac/Process.cpp
 		src/mn/mac/UUID.cpp
+		src/mn/mac/SIMD.cpp
 		src/mn/mac/internal/Cond_Var.h
 		src/mn/mac/internal/Mapped_File.h
 		src/mn/mac/internal/Mutex_RW.h

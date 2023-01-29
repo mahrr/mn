@@ -71,6 +71,7 @@ namespace mn
 		Buf<Worker> workers;
 		Buf<Worker> sleepy_side_workers;
 		Buf<Worker> ready_side_workers;
+		Waitgroup workers_wg;
 
 		Mutex mtx;
 		Cond_Var cv;
@@ -104,7 +105,11 @@ namespace mn
 					mutex_lock(self->mtx);
 					mn_defer{mutex_unlock(self->mtx);};
 
-					if (self->job_q.count == 0)
+					// reload state here because it could change between the parent if condition and mutex lock
+					// this is done to avoid sleeping with a state of (STATE_STOP_REQUEST) which will cause
+					// deadlock
+					state = self->atomic_state.load();
+					if (self->job_q.count == 0 && state == IWorker::STATE_RUNNING)
 					{
 						cond_var_wait(self->cv, self->mtx, [&]{
 							return self->job_q.count > 0 ||
@@ -174,6 +179,9 @@ namespace mn
 			}
 		}
 
+		if (self->fabric)
+			waitgroup_done(self->fabric->workers_wg);
+
 		[[maybe_unused]] auto old_state = self->atomic_state.exchange(IWorker::STATE_STOP_ACKNOWLEDGED);
 		mn_assert(old_state == IWorker::STATE_STOP_REQUEST);
 		LOCAL_WORKER = nullptr;
@@ -183,9 +191,8 @@ namespace mn
 	_worker_stop(Worker self)
 	{
 		mutex_lock(self->mtx);
-		mn_defer{mutex_unlock(self->mtx);};
-
 		self->atomic_state = IWorker::STATE_STOP_REQUEST;
+		mutex_unlock(self->mtx);
 		cond_var_notify(self->cv);
 	}
 
@@ -193,17 +200,18 @@ namespace mn
 	_worker_pause(Worker self)
 	{
 		mutex_lock(self->mtx);
-		mn_defer{mutex_unlock(self->mtx);};
 
 		auto state = self->atomic_state.load();
 		if (state == IWorker::STATE_STOP_REQUEST ||
 			state == IWorker::STATE_STOP_ACKNOWLEDGED)
 		{
+			mutex_unlock(self->mtx);
 			return;
 		}
 		mn_assert(self->atomic_state == IWorker::STATE_RUNNING);
 
 		self->atomic_state = IWorker::STATE_PAUSED;
+		mutex_unlock(self->mtx);
 		cond_var_notify(self->cv);
 	}
 
@@ -211,11 +219,9 @@ namespace mn
 	_worker_resume(Worker self)
 	{
 		mutex_lock(self->mtx);
-		mn_defer{mutex_unlock(self->mtx);};
-
 		mn_assert(self->atomic_state == IWorker::STATE_PAUSED);
-
 		self->atomic_state = IWorker::STATE_RUNNING;
+		mutex_unlock(self->mtx);
 		cond_var_notify(self->cv);
 	}
 
@@ -231,6 +237,8 @@ namespace mn
 		self->fabric_index = fabric_index;
 		self->atomic_state = IWorker::STATE_RUNNING;
 		self->atomic_disable_block_timing = true;
+		if (fabric)
+			waitgroup_add(fabric->workers_wg, 1);
 		self->thread = thread_new(_worker_main, self, self->name.ptr);
 		return self;
 	}
@@ -620,11 +628,12 @@ namespace mn
 					auto min_worker = self->workers[idle_worker];
 
 					mutex_lock(min_worker->mtx);
-					mn_defer{mutex_unlock(min_worker->mtx);};
 
 					for (auto job: tmp_jobs)
 						ring_push_back(min_worker->job_q, job);
 					buf_clear(tmp_jobs);
+
+					mutex_unlock(min_worker->mtx);
 
 					cond_var_notify(min_worker->cv);
 				}
@@ -632,22 +641,27 @@ namespace mn
 
 			// check if any sleepy worker is ready and move it either to the ready workers list
 			// or free it because we don't really need it
-			buf_remove_if(self->sleepy_side_workers, [self, &dead_workers](Worker worker) {
-				if (worker->atomic_job_start_time_in_ms.load() == 0)
-				{
-					if (self->ready_side_workers.count < self->settings.put_aside_worker_count)
+			{
+				mutex_lock(self->mtx);
+				mn_defer { mutex_unlock(self->mtx); };
+
+				buf_remove_if(self->sleepy_side_workers, [self, &dead_workers](Worker worker) {
+					if (worker->atomic_job_start_time_in_ms.load() == 0)
 					{
-						buf_push(self->ready_side_workers, worker);
+						if (self->ready_side_workers.count < self->settings.put_aside_worker_count)
+						{
+							buf_push(self->ready_side_workers, worker);
+						}
+						else
+						{
+							_worker_stop(worker);
+							buf_push(dead_workers, worker);
+						}
+						return true;
 					}
-					else
-					{
-						_worker_stop(worker);
-						buf_push(dead_workers, worker);
-					}
-					return true;
-				}
-				return false;
-			});
+					return false;
+				});
+			}
 
 			_sysmon_detect_blocking_workers(self, blocking_workers);
 			_sysmon_detect_long_running_workers(self, long_running_workers);
@@ -754,9 +768,8 @@ namespace mn
 	worker_task_do(Worker self, const Fabric_Task& task)
 	{
 		mutex_lock(self->mtx);
-		mn_defer{mutex_unlock(self->mtx);};
-
 		ring_push_back(self->job_q, task);
+		mutex_unlock(self->mtx);
 		cond_var_notify(self->cv);
 	}
 
@@ -764,11 +777,10 @@ namespace mn
 	worker_task_batch_do(Worker self, const Fabric_Task* ptr, size_t count)
 	{
 		mutex_lock(self->mtx);
-		mn_defer{mutex_unlock(self->mtx);};
-
 		ring_reserve(self->job_q, count);
 		for (size_t i = 0; i < count; ++i)
 			ring_push_back(self->job_q, ptr[i]);
+		mutex_unlock(self->mtx);
 		cond_var_notify(self->cv);
 	}
 
@@ -838,6 +850,7 @@ namespace mn
 		self->workers = buf_with_count<Worker>(self->settings.workers_count);
 		self->sleepy_side_workers = buf_new<Worker>();
 		self->ready_side_workers = buf_new<Worker>();
+		self->workers_wg = waitgroup_new();
 		self->mtx = mn_mutex_new_with_srcloc(self->name.ptr);
 		self->cv = cond_var_new();
 		self->is_running = true;
@@ -869,18 +882,24 @@ namespace mn
 			mutex_lock(self->mtx);
 			mn_defer{mutex_unlock(self->mtx);};
 
-			self->is_running = false;
-			cond_var_notify(self->cv);
+			for (auto worker : self->workers)
+				_worker_stop(worker);
+
+			for (auto worker : self->sleepy_side_workers)
+				_worker_stop(worker);
+
+			for (auto worker : self->ready_side_workers)
+				_worker_stop(worker);
 		}
 
-		for (auto worker : self->workers)
-			_worker_stop(worker);
+		waitgroup_wait(self->workers_wg);
 
-		for (auto worker : self->sleepy_side_workers)
-			_worker_stop(worker);
-
-		for (auto worker : self->ready_side_workers)
-			_worker_stop(worker);
+		{
+			mutex_lock(self->mtx);
+			self->is_running = false;
+			mutex_unlock(self->mtx);
+			cond_var_notify(self->cv);
+		}
 
 		thread_join(self->sysmon);
 		thread_free(self->sysmon);
@@ -897,6 +916,7 @@ namespace mn
 			_worker_free(worker);
 		buf_free(self->ready_side_workers);
 
+		waitgroup_free(self->workers_wg);
 		cond_var_free(self->cv);
 		mutex_free(self->mtx);
 		str_free(self->name);
@@ -916,8 +936,6 @@ namespace mn
 	fabric_task_do(Fabric self, const Fabric_Task& task)
 	{
 		mutex_lock(self->mtx);
-		mn_defer{mutex_unlock(self->mtx);};
-
 		auto next_worker = self->next_worker++;
 		next_worker %= self->workers.count;
 
@@ -925,6 +943,7 @@ namespace mn
 		worker_task_do(worker, task);
 
 		self->atomic_available_jobs.fetch_add(1);
+		mutex_unlock(self->mtx);
 		cond_var_notify(self->cv);
 	}
 
@@ -932,7 +951,6 @@ namespace mn
 	fabric_task_batch_do(Fabric self, const Fabric_Task* ptr, size_t count)
 	{
 		mutex_lock(self->mtx);
-		mn_defer{mutex_unlock(self->mtx);};
 
 		size_t increment = count / self->workers.count;
 		if (increment == 0)
@@ -954,6 +972,7 @@ namespace mn
 		}
 
 		self->atomic_available_jobs.fetch_add(count);
+		mutex_unlock(self->mtx);
 		cond_var_notify(self->cv);
 	}
 

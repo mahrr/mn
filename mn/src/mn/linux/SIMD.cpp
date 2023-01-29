@@ -2,22 +2,7 @@
 
 // SIMD is only relevant for x86 family of architectures
 #if ARCH_X86
-
-#ifdef _MSC_VER
-#include <intrin.h>
-#endif
-
-#ifdef __GNUC__
-void __cpuid(int* cpuinfo, int info)
-{
-	__asm__ __volatile__(
-		"xchg %%ebx, %%edi;"
-		"cpuid;"
-		"xchg %%ebx, %%edi;"
-		:"=a" (cpuinfo[0]), "=D" (cpuinfo[1]), "=c" (cpuinfo[2]), "=d" (cpuinfo[3])
-		:"0" (info)
-	);
-}
+#include <cpuid.h>
 
 unsigned long long _xgetbv(unsigned int index)
 {
@@ -29,7 +14,6 @@ unsigned long long _xgetbv(unsigned int index)
 	);
 	return ((unsigned long long)edx << 32) | eax;
 }
-#endif
 
 inline static mn_simd_support
 _mn_simd_check()
@@ -37,7 +21,7 @@ _mn_simd_check()
 	mn_simd_support res{};
 
 	int cpuinfo[4];
-	__cpuid(cpuinfo, 1);
+	__cpuid(1, cpuinfo[0], cpuinfo[1], cpuinfo[2], cpuinfo[3]);
 
 	res.sse_supportted = cpuinfo[3] & (1 << 25) || false;
 	res.sse2_supportted = cpuinfo[3] & (1 << 26) || false;
@@ -63,17 +47,18 @@ _mn_simd_check()
 	// Check SSE4a and SSE5 support
 
 	// Get the number of valid extended IDs
-	__cpuid(cpuinfo, 0x80000000);
+	__cpuid(0x80000000, cpuinfo[0], cpuinfo[1], cpuinfo[2], cpuinfo[3]);
 	int numExtendedIds = cpuinfo[0];
 	if (numExtendedIds >= (int)0x80000001)
 	{
-		__cpuid(cpuinfo, 0x80000001);
+		__cpuid(0x80000001, cpuinfo[0], cpuinfo[1], cpuinfo[2], cpuinfo[3]);
 		res.sse4a_supportted = cpuinfo[2] & (1 << 6) || false;
 		res.sse5_supportted = cpuinfo[2] & (1 << 11) || false;
 	}
 
 	return res;
 }
+
 #else
 inline static mn_simd_support
 _mn_simd_check()
