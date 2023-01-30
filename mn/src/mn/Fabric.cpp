@@ -20,7 +20,6 @@ namespace mn
 		enum STATE
 		{
 			STATE_RUNNING,
-			STATE_PAUSED,
 			STATE_STOP_REQUEST,
 			STATE_STOP_ACKNOWLEDGED
 		};
@@ -56,6 +55,7 @@ namespace mn
 	struct IFabric_Timer_System
 	{
 		Mutex mtx;
+		bool running;
 		Pool timers_pool;
 		Map<int, IFabric_Timer*> timers;
 		std::atomic<int> atomic_timer_jobs_count;
@@ -71,7 +71,7 @@ namespace mn
 		Buf<Worker> workers;
 		Buf<Worker> sleepy_side_workers;
 		Buf<Worker> ready_side_workers;
-		Waitgroup workers_wg;
+		Waitgroup jobs_wg;
 
 		Mutex mtx;
 		Cond_Var cv;
@@ -155,18 +155,7 @@ namespace mn
 					if (self->fabric->settings.after_each_job)
 						self->fabric->settings.after_each_job();
 					self->fabric->atomic_available_jobs.fetch_sub(1);
-				}
-			}
-			else if (state == IWorker::STATE_PAUSED)
-			{
-				mutex_lock(self->mtx);
-				mn_defer{mutex_unlock(self->mtx);};
-
-				if (self->atomic_state.load() == IWorker::STATE_PAUSED)
-				{
-					cond_var_wait(self->cv, self->mtx, [&]{
-						return self->atomic_state.load() != IWorker::STATE_PAUSED;
-					});
+					waitgroup_done(self->fabric->jobs_wg);
 				}
 			}
 			else if (state == IWorker::STATE_STOP_REQUEST)
@@ -179,9 +168,6 @@ namespace mn
 			}
 		}
 
-		if (self->fabric)
-			waitgroup_done(self->fabric->workers_wg);
-
 		[[maybe_unused]] auto old_state = self->atomic_state.exchange(IWorker::STATE_STOP_ACKNOWLEDGED);
 		mn_assert(old_state == IWorker::STATE_STOP_REQUEST);
 		LOCAL_WORKER = nullptr;
@@ -192,35 +178,6 @@ namespace mn
 	{
 		mutex_lock(self->mtx);
 		self->atomic_state = IWorker::STATE_STOP_REQUEST;
-		mutex_unlock(self->mtx);
-		cond_var_notify(self->cv);
-	}
-
-	inline static void
-	_worker_pause(Worker self)
-	{
-		mutex_lock(self->mtx);
-
-		auto state = self->atomic_state.load();
-		if (state == IWorker::STATE_STOP_REQUEST ||
-			state == IWorker::STATE_STOP_ACKNOWLEDGED)
-		{
-			mutex_unlock(self->mtx);
-			return;
-		}
-		mn_assert(self->atomic_state == IWorker::STATE_RUNNING);
-
-		self->atomic_state = IWorker::STATE_PAUSED;
-		mutex_unlock(self->mtx);
-		cond_var_notify(self->cv);
-	}
-
-	inline static void
-	_worker_resume(Worker self)
-	{
-		mutex_lock(self->mtx);
-		mn_assert(self->atomic_state == IWorker::STATE_PAUSED);
-		self->atomic_state = IWorker::STATE_RUNNING;
 		mutex_unlock(self->mtx);
 		cond_var_notify(self->cv);
 	}
@@ -237,8 +194,6 @@ namespace mn
 		self->fabric_index = fabric_index;
 		self->atomic_state = IWorker::STATE_RUNNING;
 		self->atomic_disable_block_timing = true;
-		if (fabric)
-			waitgroup_add(fabric->workers_wg, 1);
 		self->thread = thread_new(_worker_main, self, self->name.ptr);
 		return self;
 	}
@@ -285,10 +240,6 @@ namespace mn
 		if (blocking_workers.count < self->workers.count * self->settings.blocking_workers_threshold)
 			buf_clear(blocking_workers);
 
-		// pause all the blocking workers
-		for (auto blocking_worker: blocking_workers)
-			_worker_pause(blocking_worker);
-
 		// move the blocking workers out
 		{
 			mutex_lock(self->mtx);
@@ -317,8 +268,6 @@ namespace mn
 						mn_assert(new_worker->job_q.count == 0);
 						ring_free(new_worker->job_q);
 						new_worker->job_q = job_q;
-
-						_worker_resume(new_worker);
 					}
 					else
 					{
@@ -362,10 +311,6 @@ namespace mn
 			}
 		}
 
-		// pause all the blocking workers
-		for (auto blocking_worker: blocking_workers)
-			_worker_pause(blocking_worker);
-
 		// move the blocking workers out
 		{
 			mutex_lock(self->mtx);
@@ -394,8 +339,6 @@ namespace mn
 						mn_assert(new_worker->job_q.count == 0);
 						ring_free(new_worker->job_q);
 						new_worker->job_q = job_q;
-
-						_worker_resume(new_worker);
 					}
 					else
 					{
@@ -513,66 +456,69 @@ namespace mn
 				mutex_lock(self->timer_system.mtx);
 				mn_defer{mutex_unlock(self->timer_system.mtx);};
 
-				auto timer_now = time_in_millis();
-				auto timer_delta_in_ms = timer_now - timer_prev;
-				timer_prev = timer_now;
-
-				buf_clear(removed_timers);
-				for (auto& [key, timer]: self->timer_system.timers)
+				if (self->timer_system.running)
 				{
-					if (timer->atomic_freed && timer->running_instances.load() == 0)
-					{
-						task_free(timer->task);
-						--self->timer_system.atomic_timer_id_generator;
-						buf_push(removed_timers, key);
-					}
-				}
+					auto timer_now = time_in_millis();
+					auto timer_delta_in_ms = timer_now - timer_prev;
+					timer_prev = timer_now;
 
-				for (auto t: removed_timers)
-				{
-					map_remove(self->timer_system.timers, t);
-				}
-
-				timer_min_sleep_in_ms = UINT32_MAX;
-				for (auto& [_, timer]: self->timer_system.timers)
-				{
-					if (timer->stopped)
+					buf_clear(removed_timers);
+					for (auto& [key, timer]: self->timer_system.timers)
 					{
-						timer->remaining = timer->milliseconds;
-						continue;
+						if (timer->atomic_freed && timer->running_instances.load() == 0)
+						{
+							task_free(timer->task);
+							--self->timer_system.atomic_timer_id_generator;
+							buf_push(removed_timers, key);
+						}
 					}
 
-					if (timer_delta_in_ms > timer->remaining)
+					for (auto t: removed_timers)
 					{
-						timer->remaining = 0;
-					}
-					else
-					{
-						timer->remaining -= (uint32_t)timer_delta_in_ms;
+						map_remove(self->timer_system.timers, t);
 					}
 
-					if (timer->remaining == 0)
+					timer_min_sleep_in_ms = UINT32_MAX;
+					for (auto& [_, timer]: self->timer_system.timers)
 					{
-						timer->running_instances.fetch_add(1);
+						if (timer->stopped)
+						{
+							timer->remaining = timer->milliseconds;
+							continue;
+						}
 
-						auto next_worker = self->next_worker++;
-						next_worker %= self->workers.count;
+						if (timer_delta_in_ms > timer->remaining)
+						{
+							timer->remaining = 0;
+						}
+						else
+						{
+							timer->remaining -= (uint32_t)timer_delta_in_ms;
+						}
 
-						auto worker = self->workers[next_worker];
+						if (timer->remaining == 0)
+						{
+							timer->running_instances.fetch_add(1);
 
-						Fabric_Task task{};
-						task.kind = Fabric_Task::KIND_TIMER;
-						task.as_timer = timer;
-						worker_task_do(worker, task);
-						timer->remaining = timer->milliseconds;
+							auto next_worker = self->next_worker++;
+							next_worker %= self->workers.count;
 
-						if (timer->is_single_shot)
-							timer->stopped = true;
-						if (timer->free_after_single_shot)
-							timer->atomic_freed = true;
+							auto worker = self->workers[next_worker];
+
+							Fabric_Task task{};
+							task.kind = Fabric_Task::KIND_TIMER;
+							task.as_timer = timer;
+							worker_task_do(worker, task);
+							timer->remaining = timer->milliseconds;
+
+							if (timer->is_single_shot)
+								timer->stopped = true;
+							if (timer->free_after_single_shot)
+								timer->atomic_freed = true;
+						}
+
+						timer_min_sleep_in_ms = timer_min_sleep_in_ms > timer->remaining ? timer->remaining : timer_min_sleep_in_ms;
 					}
-
-					timer_min_sleep_in_ms = timer_min_sleep_in_ms > timer->remaining ? timer->remaining : timer_min_sleep_in_ms;
 				}
 			}
 
@@ -767,6 +713,11 @@ namespace mn
 	void
 	worker_task_do(Worker self, const Fabric_Task& task)
 	{
+		if (self->fabric)
+		{
+			waitgroup_add(self->fabric->jobs_wg, 1);
+		}
+
 		mutex_lock(self->mtx);
 		ring_push_back(self->job_q, task);
 		mutex_unlock(self->mtx);
@@ -776,6 +727,11 @@ namespace mn
 	void
 	worker_task_batch_do(Worker self, const Fabric_Task* ptr, size_t count)
 	{
+		if (self->fabric)
+		{
+			waitgroup_add(self->fabric->jobs_wg, (int)count);
+		}
+
 		mutex_lock(self->mtx);
 		ring_reserve(self->job_q, count);
 		for (size_t i = 0; i < count; ++i)
@@ -850,7 +806,7 @@ namespace mn
 		self->workers = buf_with_count<Worker>(self->settings.workers_count);
 		self->sleepy_side_workers = buf_new<Worker>();
 		self->ready_side_workers = buf_new<Worker>();
-		self->workers_wg = waitgroup_new();
+		self->jobs_wg = waitgroup_new();
 		self->mtx = mn_mutex_new_with_srcloc(self->name.ptr);
 		self->cv = cond_var_new();
 		self->is_running = true;
@@ -859,6 +815,7 @@ namespace mn
 		self->worker_id_generator = 0;
 
 		self->timer_system.mtx = mn_mutex_new_with_srcloc("fabric timer system");
+		self->timer_system.running = true;
 		self->timer_system.timers_pool = pool_new(sizeof(IFabric_Timer), 128);
 
 		for (size_t i = 0; i < self->workers.count; ++i)
@@ -878,6 +835,17 @@ namespace mn
 	void
 	fabric_free(Fabric self)
 	{
+		// turn off timers
+		{
+			mutex_lock(self->timer_system.mtx);
+			self->timer_system.running = false;
+			mutex_unlock(self->timer_system.mtx);
+		}
+
+		// wait for all jobs to finish
+		waitgroup_wait(self->jobs_wg);
+
+		// stop all the workers
 		{
 			mutex_lock(self->mtx);
 			mn_defer{mutex_unlock(self->mtx);};
@@ -891,8 +859,6 @@ namespace mn
 			for (auto worker : self->ready_side_workers)
 				_worker_stop(worker);
 		}
-
-		waitgroup_wait(self->workers_wg);
 
 		{
 			mutex_lock(self->mtx);
@@ -916,7 +882,7 @@ namespace mn
 			_worker_free(worker);
 		buf_free(self->ready_side_workers);
 
-		waitgroup_free(self->workers_wg);
+		waitgroup_free(self->jobs_wg);
 		cond_var_free(self->cv);
 		mutex_free(self->mtx);
 		str_free(self->name);
