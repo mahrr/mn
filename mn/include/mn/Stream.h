@@ -194,7 +194,7 @@ namespace mn
 				if (write_err == IO_ERROR_END_OF_FILE)
 					end_of_file = true;
 				else
-					write_err;
+					return write_err;
 			}
 
 			ptr += write_size;
