@@ -51,6 +51,7 @@ set(HEADER_FILES
 	include/mn/Json.h
 	include/mn/Regex.h
 	include/mn/Assert.h
+	include/mn/Msgpack.h
 )
 
 # list the source files
@@ -77,6 +78,7 @@ set(SOURCE_FILES
 	src/mn/Json.cpp
 	src/mn/Regex.cpp
 	src/mn/Assert.cpp
+	src/mn/Msgpack.cpp
 	src/utf8proc/utf8proc.cpp
 )
 

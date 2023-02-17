@@ -27,14 +27,14 @@ namespace mn
 
 		// reads into the given memory block and returns the amount of read memory in bytes
 		Result<size_t, IO_ERROR>
-		read(Block data) override
+		read(Block out_data) override
 		{
-			return block_stream_read(*this, data);
+			return block_stream_read(*this, out_data);
 		}
 
 		// block stream is a readonly one so it fails when you write into it by returning 0 bytes written
 		Result<size_t, IO_ERROR>
-		write(Block data) override
+		write(Block) override
 		{
 			return IO_ERROR_NOT_SUPPORTED;
 		}
