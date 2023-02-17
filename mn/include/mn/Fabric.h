@@ -531,6 +531,32 @@ namespace mn
 		return res;
 	}
 
+	template<typename TFunc, typename ... TArgs>
+	inline static Auto_Chan_Stream
+	lazy_stream(Fabric f, TFunc&& func, Chan_Stream stream_in, TArgs&& ... args)
+	{
+		Auto_Chan_Stream res;
+		chan_stream_ref(stream_in);
+		go(f, [=]{
+			func(stream_in, res, args...);
+			chan_stream_close(res);
+			chan_stream_unref(stream_in);
+		});
+		return res;
+	}
+
+	template<typename TFunc, typename ... TArgs>
+	inline static Auto_Chan_Stream
+	lazy_stream(Fabric f, TFunc&& func, Auto_Chan_Stream stream_in, TArgs&& ... args)
+	{
+		Auto_Chan_Stream res;
+		go(f, [=]{
+			func(stream_in, res, args...);
+			chan_stream_close(res);
+		});
+		return res;
+	}
+
 	template<typename T>
 	struct _IFuture
 	{

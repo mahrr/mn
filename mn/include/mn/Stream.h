@@ -132,7 +132,7 @@ namespace mn
 			if (read_err != IO_ERROR_NONE)
 			{
 				if (read_err == IO_ERROR_END_OF_FILE)
-					break;
+					return read_err;
 				else
 					return read_err;
 			}
@@ -144,6 +144,7 @@ namespace mn
 				auto [write_size, write_err] = dst->write(Block{ptr, size});
 				if (write_err != IO_ERROR_NONE)
 					return write_err;
+				mn_assert(write_size <= size);
 				size -= write_size;
 				ptr += write_size;
 				res += write_size;
@@ -159,18 +160,13 @@ namespace mn
 		size_t res = 0;
 		auto ptr = (char*)dst.ptr;
 		auto size = dst.size;
-		bool end_of_file = false;
-		while(size > 0 && end_of_file == false)
+		while(size > 0)
 		{
 			auto [read_size, read_err] = src->read(Block{ptr, size});
 			if (read_err != IO_ERROR_NONE)
-			{
-				if (read_err == IO_ERROR_END_OF_FILE)
-					end_of_file = true;
-				else
-					return read_err;
-			}
+				return read_err;
 
+			mn_assert(read_size <= size);
 			ptr += read_size;
 			size -= read_size;
 			res += read_size;
@@ -185,17 +181,12 @@ namespace mn
 		size_t res = 0;
 		auto ptr = (char*)src.ptr;
 		auto size = src.size;
-		bool end_of_file = false;
-		while(size > 0 && end_of_file == false)
+		while(size > 0)
 		{
 			auto [write_size, write_err] = dst->write(Block{ptr, size});
 			if (write_err != IO_ERROR_NONE)
-			{
-				if (write_err == IO_ERROR_END_OF_FILE)
-					end_of_file = true;
-				else
-					return write_err;
-			}
+				return write_err;
+			mn_assert(write_size <= size);
 
 			ptr += write_size;
 			size -= write_size;
@@ -212,7 +203,7 @@ namespace mn
 		char _buf[1024];
 		auto buf = block_from(_buf);
 		bool end_of_file = false;
-		while(end_of_file == false)
+		while (end_of_file == false)
 		{
 			auto [read_size, read_err] = src->read(buf);
 			if (read_err != IO_ERROR_NONE)

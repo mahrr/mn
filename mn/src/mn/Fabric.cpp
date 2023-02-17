@@ -263,11 +263,16 @@ namespace mn
 						auto new_worker = buf_top(self->ready_side_workers);
 						buf_pop(self->ready_side_workers);
 
-						new_worker->fabric_index = blocking_worker->fabric_index;
 						self->workers[blocking_worker->fabric_index] = new_worker;
+
+						mutex_lock(new_worker->mtx);
+						new_worker->fabric_index = blocking_worker->fabric_index;
 						mn_assert(new_worker->job_q.count == 0);
 						ring_free(new_worker->job_q);
 						new_worker->job_q = job_q;
+						mutex_unlock(new_worker->mtx);
+
+						cond_var_notify(new_worker->cv);
 					}
 					else
 					{
@@ -334,11 +339,16 @@ namespace mn
 						auto new_worker = buf_top(self->ready_side_workers);
 						buf_pop(self->ready_side_workers);
 
-						new_worker->fabric_index = blocking_worker->fabric_index;
 						self->workers[blocking_worker->fabric_index] = new_worker;
+
+						mutex_lock(self->mtx);
+						new_worker->fabric_index = blocking_worker->fabric_index;
 						mn_assert(new_worker->job_q.count == 0);
 						ring_free(new_worker->job_q);
 						new_worker->job_q = job_q;
+						mutex_unlock(self->mtx);
+
+						cond_var_notify(new_worker->cv);
 					}
 					else
 					{
@@ -984,7 +994,7 @@ namespace mn
 			if (chan_stream_closed(this))
 			{
 				mutex_unlock(this->mtx);
-				return IO_ERROR_CLOSED;
+				return IO_ERROR_END_OF_FILE;
 			}
 
 			cond_var_wait(this->read_cv, this->mtx, [this]{

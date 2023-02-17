@@ -1659,3 +1659,37 @@ TEST_CASE("log colors")
 	mn::log_warning("This is a warning message");
 	mn::log_error("This is an error message");
 }
+
+TEST_CASE("blocking chan_stream workers")
+{
+	mn::Fabric_Settings fabric_settings{};
+	fabric_settings.workers_count = 1;
+
+	auto fabric = mn::fabric_new(fabric_settings);
+	mn_defer{mn::fabric_free(fabric);};
+
+	const char src_buffer[4096]{};
+	auto identity = +[](mn::Stream input, mn::Stream output)
+	{
+		char tmp[2048];
+		while (true)
+		{
+			auto [read_size, read_err] = mn::stream_copy({tmp, 128}, input);
+			if (read_err == mn::IO_ERROR_END_OF_FILE)
+				break;
+			auto [write_size, write_err] = mn::stream_copy(output, mn::Block{tmp, read_size});
+			CHECK(write_err == mn::IO_ERROR_NONE);
+			CHECK(write_size == read_size);
+		}
+		int x = 2314;
+	};
+
+	auto stream_in1 = mn::block_stream_wrap(mn::block_from(src_buffer));
+	auto stream_out1 = mn::lazy_stream(fabric, identity, &stream_in1);
+	auto stream_out2 = mn::lazy_stream(fabric, identity, stream_out1);
+
+	char dst_buffer[4096]{};
+	auto [size, err] = mn::stream_copy(mn::Block{dst_buffer, 4096}, stream_out2);
+	CHECK(err == mn::IO_ERROR_NONE);
+	CHECK(size == 4096);
+}
