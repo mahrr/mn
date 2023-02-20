@@ -68,13 +68,13 @@ namespace mn
 	Result<size_t, IO_ERROR>
 	IFile::read(Block data)
 	{
-		return file_read(this, data, INFINITE_TIMEOUT);
+		return file_read_timeout(this, data, INFINITE_TIMEOUT);
 	}
 
 	Result<size_t, IO_ERROR>
 	IFile::write(Block data)
 	{
-		return file_write(this, data, INFINITE_TIMEOUT);
+		return file_write_timeout(this, data, INFINITE_TIMEOUT);
 	}
 
 	Result<size_t, IO_ERROR>
@@ -218,7 +218,7 @@ namespace mn
 	}
 
 	Result<size_t, IO_ERROR>
-	file_write(File self, Block data, Timeout timeout)
+	file_write_timeout(File self, Block data, Timeout timeout)
 	{
 		pollfd pfd_write{};
 		pfd_write.fd = self->linux_handle;
@@ -255,7 +255,7 @@ namespace mn
 	}
 
 	Result<size_t, IO_ERROR>
-	file_read(File self, Block data, Timeout timeout)
+	file_read_timeout(File self, Block data, Timeout timeout)
 	{
 		pollfd pfd_read{};
 		pfd_read.fd = self->linux_handle;

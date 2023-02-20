@@ -13,7 +13,7 @@ main()
 
 	uint64_t v = 0;
 	mn::file_cursor_move_to_start(f);
-	mn::file_write(f, mn::block_from(v), mn::INFINITE_TIMEOUT);
+	mn::file_write(f, mn::block_from(v));
 
 	while(true)
 	{
@@ -21,12 +21,12 @@ main()
 
 		mn::file_write_lock(f, 0, 8);
 
-		auto res = mn::file_read(f, mn::block_from(v), mn::INFINITE_TIMEOUT);
+		auto res = mn::file_read(f, mn::block_from(v));
 		mn_assert(res.err == mn::IO_ERROR_NONE);
 		mn_assert(res.val == 8);
 		++v;
 		mn::file_cursor_move_to_start(f);
-		res = mn::file_write(f, mn::block_from(v), mn::INFINITE_TIMEOUT);
+		res = mn::file_write(f, mn::block_from(v));
 		mn_assert(res.err == mn::IO_ERROR_NONE);
 		mn_assert(res.val == 8);
 

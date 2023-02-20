@@ -175,11 +175,25 @@ namespace mn
 
 	// writes the given block of bytes to the given file, and returns the written amount of bytes
 	MN_EXPORT Result<size_t, IO_ERROR>
-	file_write(File handle, Block data, Timeout timeout);
+	file_write_timeout(File handle, Block data, Timeout timeout);
+
+	// writes the given block of bytes to the given file, and returns the written amount of bytes
+	inline static Result<size_t, IO_ERROR>
+	file_write(File handle, Block data)
+	{
+		return file_write_timeout(handle, data, INFINITE_TIMEOUT);
+	}
 
 	// reads from the file into the given block of bytes, and returns the read amount of bytes
 	MN_EXPORT Result<size_t, IO_ERROR>
-	file_read(File handle, Block data, Timeout timeout);
+	file_read_timeout(File handle, Block data, Timeout timeout);
+
+	// reads from the file into the given block of bytes, and returns the read amount of bytes
+	inline static Result<size_t, IO_ERROR>
+	file_read(File handle, Block data)
+	{
+		return file_read_timeout(handle, data, INFINITE_TIMEOUT);
+	}
 
 	// returns the size of the file in bytes
 	MN_EXPORT Result<size_t, IO_ERROR>
