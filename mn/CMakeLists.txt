@@ -78,7 +78,6 @@ set(SOURCE_FILES
 	src/mn/Json.cpp
 	src/mn/Regex.cpp
 	src/mn/Assert.cpp
-	src/mn/Msgpack.cpp
 	src/utf8proc/utf8proc.cpp
 )
 
