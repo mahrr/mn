@@ -341,12 +341,12 @@ namespace mn
 
 						self->workers[blocking_worker->fabric_index] = new_worker;
 
-						mutex_lock(self->mtx);
+						mutex_lock(new_worker->mtx);
 						new_worker->fabric_index = blocking_worker->fabric_index;
 						mn_assert(new_worker->job_q.count == 0);
 						ring_free(new_worker->job_q);
 						new_worker->job_q = job_q;
-						mutex_unlock(self->mtx);
+						mutex_unlock(new_worker->mtx);
 
 						cond_var_notify(new_worker->cv);
 					}
