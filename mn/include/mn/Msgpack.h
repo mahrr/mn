@@ -6,6 +6,8 @@
 #include "mn/Map.h"
 #include "mn/Defer.h"
 #include "mn/Block_Stream.h"
+#include "mn/Fmt.h"
+#include "mn/Bits.h"
 
 namespace mn
 {
@@ -39,17 +41,101 @@ namespace mn
 		return {};
 	}
 
-	template<typename T>
 	inline static Err
-	_msgpack_push(Msgpack_Writer& self, T v)
+	_msgpack_push_uint8(Msgpack_Writer& self, uint8_t v)
 	{
+		return _msgpack_push(self, Block{&v, sizeof(v)});
+	}
+
+	inline static Err
+	_msgpack_push_uint16(Msgpack_Writer& self, uint16_t v)
+	{
+		if (system_endianness() == ENDIAN_LITTLE)
+			v = byteswap_uint16(v);
+		return _msgpack_push(self, Block{&v, sizeof(v)});
+	}
+
+	inline static Err
+	_msgpack_push_uint32(Msgpack_Writer& self, uint32_t v)
+	{
+		if (system_endianness() == ENDIAN_LITTLE)
+			v = byteswap_uint32(v);
+		return _msgpack_push(self, Block{&v, sizeof(v)});
+	}
+
+	inline static Err
+	_msgpack_push_uint64(Msgpack_Writer& self, uint64_t v)
+	{
+		if (system_endianness() == ENDIAN_LITTLE)
+			v = byteswap_uint64(v);
+		return _msgpack_push(self, Block{&v, sizeof(v)});
+	}
+
+	inline static Err
+	_msgpack_push_int8(Msgpack_Writer& self, int8_t v)
+	{
+		return _msgpack_push(self, Block{&v, sizeof(v)});
+	}
+
+	inline static Err
+	_msgpack_push_int16(Msgpack_Writer& self, int16_t v)
+	{
+		if (system_endianness() == ENDIAN_LITTLE)
+		{
+			auto res = byteswap_uint16(*(uint16_t*)&v);
+			v = *(int16_t*)&res;
+		}
+		return _msgpack_push(self, Block{&v, sizeof(v)});
+	}
+
+	inline static Err
+	_msgpack_push_int32(Msgpack_Writer& self, int32_t v)
+	{
+		if (system_endianness() == ENDIAN_LITTLE)
+		{
+			auto res = byteswap_uint32(*(uint32_t*)&v);
+			v = *(int32_t*)&res;
+		}
+		return _msgpack_push(self, Block{&v, sizeof(v)});
+	}
+
+	inline static Err
+	_msgpack_push_int64(Msgpack_Writer& self, int64_t v)
+	{
+		if (system_endianness() == ENDIAN_LITTLE)
+		{
+			auto res = byteswap_uint64(*(uint64_t*)&v);
+			v = *(int64_t*)&res;
+		}
+		return _msgpack_push(self, Block{&v, sizeof(v)});
+	}
+
+	inline static Err
+	_msgpack_push_float(Msgpack_Writer& self, float v)
+	{
+		if (system_endianness() == ENDIAN_LITTLE)
+		{
+			auto res = byteswap_uint32(*(uint32_t*)&v);
+			v = *(float*)&res;
+		}
+		return _msgpack_push(self, Block{&v, sizeof(v)});
+	}
+
+	inline static Err
+	_msgpack_push_double(Msgpack_Writer& self, double v)
+	{
+		if (system_endianness() == ENDIAN_LITTLE)
+		{
+			auto res = byteswap_uint64(*(uint64_t*)&v);
+			v = *(double*)&res;
+		}
 		return _msgpack_push(self, Block{&v, sizeof(v)});
 	}
 
 	inline static Err
 	msgpack(Msgpack_Writer& self, nullptr_t)
 	{
-		return _msgpack_push(self, 0xc0);
+		return _msgpack_push_uint8(self, 0xc0);
 	}
 
 	inline static Err
@@ -60,7 +146,7 @@ namespace mn
 			rep = 0xc3;
 		else
 			rep = 0xc2;
-		return _msgpack_push(self, rep);
+		return _msgpack_push_uint8(self, rep);
 	}
 
 	inline static Err
@@ -69,34 +155,34 @@ namespace mn
 		if (v <= 0x7f)
 		{
 			uint8_t rep = (uint8_t)v;
-			return _msgpack_push(self, rep);
+			return _msgpack_push_uint8(self, rep);
 		}
 		else if (v <= UINT8_MAX)
 		{
 			uint8_t prefix = 0xcc;
-			if (auto err = _msgpack_push(self, prefix)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 			uint8_t num = (uint8_t)v;
-			return _msgpack_push(self, num);
+			return _msgpack_push_uint8(self, num);
 		}
 		else if (v <= UINT16_MAX)
 		{
 			uint8_t prefix = 0xcd;
-			if (auto err = _msgpack_push(self, prefix)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 			uint16_t num = (uint16_t)v;
-			return _msgpack_push(self, num);
+			return _msgpack_push_uint16(self, num);
 		}
 		else if (v <= UINT32_MAX)
 		{
 			uint8_t prefix = 0xce;
-			if (auto err = _msgpack_push(self, prefix)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 			uint32_t num = (uint32_t)v;
-			return _msgpack_push(self, num);
+			return _msgpack_push_uint32(self, num);
 		}
 		else if (v <= UINT64_MAX)
 		{
 			uint8_t prefix = 0xcf;
-			if (auto err = _msgpack_push(self, prefix)) return err;
-			return _msgpack_push(self, v);
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+			return _msgpack_push_uint64(self, v);
 		}
 		else
 		{
@@ -131,34 +217,34 @@ namespace mn
 			if (v <= 0x7f)
 			{
 				int8_t rep = (int8_t)v;
-				return _msgpack_push(self, rep);
+				return _msgpack_push_int8(self, rep);
 			}
 			else if (v <= INT8_MAX)
 			{
 				uint8_t prefix = 0xd0;
-				if (auto err = _msgpack_push(self, prefix)) return err;
+				if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 				int8_t num = (int8_t)v;
-				return _msgpack_push(self, num);
+				return _msgpack_push_int8(self, num);
 			}
 			else if (v <= INT16_MAX)
 			{
 				uint8_t prefix = 0xd1;
-				if (auto err = _msgpack_push(self, prefix)) return err;
+				if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 				int16_t num = (int16_t)v;
-				return _msgpack_push(self, num);
+				return _msgpack_push_int16(self, num);
 			}
 			else if (v <= INT32_MAX)
 			{
 				uint8_t prefix = 0xd2;
-				if (auto err = _msgpack_push(self, prefix)) return err;
+				if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 				int32_t num = (int32_t)v;
-				return _msgpack_push(self, num);
+				return _msgpack_push_int32(self, num);
 			}
 			else if (v <= INT64_MAX)
 			{
 				uint8_t prefix = 0xd3;
-				if (auto err = _msgpack_push(self, prefix)) return err;
-				return _msgpack_push(self, v);
+				if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+				return _msgpack_push_int64(self, v);
 			}
 			else
 			{
@@ -171,34 +257,34 @@ namespace mn
 			if (v >= -32)
 			{
 				int8_t rep = (int8_t)v;
-				return _msgpack_push(self, rep);
+				return _msgpack_push_int8(self, rep);
 			}
 			else if (v >= INT8_MIN)
 			{
 				uint8_t prefix = 0xd0;
-				if (auto err = _msgpack_push(self, prefix)) return err;
+				if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 				int8_t num = (int8_t)v;
-				return _msgpack_push(self, num);
+				return _msgpack_push_int8(self, num);
 			}
 			else if (v >= INT16_MIN)
 			{
 				uint8_t prefix = 0xd1;
-				if (auto err = _msgpack_push(self, prefix)) return err;
+				if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 				int16_t num = (int16_t)v;
-				return _msgpack_push(self, num);
+				return _msgpack_push_int16(self, num);
 			}
 			else if (v >= INT32_MIN)
 			{
 				uint8_t prefix = 0xd2;
-				if (auto err = _msgpack_push(self, prefix)) return err;
+				if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 				int32_t num = (int32_t)v;
-				return _msgpack_push(self, num);
+				return _msgpack_push_int32(self, num);
 			}
 			else if (v >= INT64_MIN)
 			{
 				uint8_t prefix = 0xd3;
-				if (auto err = _msgpack_push(self, prefix)) return err;
-				return _msgpack_push(self, v);
+				if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+				return _msgpack_push_int64(self, v);
 			}
 			else
 			{
@@ -230,16 +316,16 @@ namespace mn
 	msgpack(Msgpack_Writer& self, float v)
 	{
 		uint8_t prefix = 0xca;
-		if (auto err = _msgpack_push(self, prefix)) return err;
-		return _msgpack_push(self, v);
+		if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+		return _msgpack_push_float(self, v);
 	}
 
 	inline static Err
 	msgpack(Msgpack_Writer& self, double v)
 	{
 		uint8_t prefix = 0xcb;
-		if (auto err = _msgpack_push(self, prefix)) return err;
-		return _msgpack_push(self, v);
+		if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+		return _msgpack_push_double(self, v);
 	}
 
 	inline static Err
@@ -249,31 +335,31 @@ namespace mn
 		{
 			uint8_t prefix = (uint8_t)v.count;
 			prefix |= 0xa0;
-			if (auto err = _msgpack_push(self, prefix)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 			return _msgpack_push(self, block_from(v));
 		}
 		else if (v.count <= UINT8_MAX)
 		{
 			uint8_t prefix = 0xd9;
-			if (auto err = _msgpack_push(self, prefix)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 			uint8_t count = (uint8_t)v.count;
-			if (auto err = _msgpack_push(self, count)) return err;
+			if (auto err = _msgpack_push_uint8(self, count)) return err;
 			return _msgpack_push(self, block_from(v));
 		}
 		else if (v.count <= UINT16_MAX)
 		{
 			uint8_t prefix = 0xda;
-			if (auto err = _msgpack_push(self, prefix)) return err;
-			uint8_t count = (uint8_t)v.count;
-			if (auto err = _msgpack_push(self, count)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+			uint16_t count = (uint16_t)v.count;
+			if (auto err = _msgpack_push_uint16(self, count)) return err;
 			return _msgpack_push(self, block_from(v));
 		}
 		else if (v.count <= UINT32_MAX)
 		{
 			uint8_t prefix = 0xdb;
-			if (auto err = _msgpack_push(self, prefix)) return err;
-			uint8_t count = (uint8_t)v.count;
-			if (auto err = _msgpack_push(self, count)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+			uint32_t count = (uint32_t)v.count;
+			if (auto err = _msgpack_push_uint32(self, count)) return err;
 			return _msgpack_push(self, block_from(v));
 		}
 		else
@@ -295,25 +381,25 @@ namespace mn
 		if (v.size <= UINT8_MAX)
 		{
 			uint8_t prefix = 0xc4;
-			if (auto err = _msgpack_push(self, prefix)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 			uint8_t count = (uint8_t)v.size;
-			if (auto err = _msgpack_push(self, count)) return err;
+			if (auto err = _msgpack_push_uint8(self, count)) return err;
 			return _msgpack_push(self, v);
 		}
 		else if (v.size <= UINT16_MAX)
 		{
 			uint8_t prefix = 0xc5;
-			if (auto err = _msgpack_push(self, prefix)) return err;
-			uint8_t count = (uint8_t)v.size;
-			if (auto err = _msgpack_push(self, count)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+			uint16_t count = (uint16_t)v.size;
+			if (auto err = _msgpack_push_uint16(self, count)) return err;
 			return _msgpack_push(self, v);
 		}
 		else if (v.size <= UINT32_MAX)
 		{
 			uint8_t prefix = 0xc6;
-			if (auto err = _msgpack_push(self, prefix)) return err;
-			uint8_t count = (uint8_t)v.size;
-			if (auto err = _msgpack_push(self, count)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+			uint32_t count = (uint32_t)v.size;
+			if (auto err = _msgpack_push_uint32(self, count)) return err;
 			return _msgpack_push(self, v);
 		}
 		else
@@ -331,21 +417,21 @@ namespace mn
 		{
 			uint8_t prefix = (uint8_t)v.count;
 			prefix |= 0x90;
-			if (auto err = _msgpack_push(self, prefix)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 		}
 		else if (v.count <= UINT16_MAX)
 		{
 			uint8_t prefix = 0xdc;
-			if (auto err = _msgpack_push(self, prefix)) return err;
-			uint8_t count = (uint8_t)v.count;
-			if (auto err = _msgpack_push(self, count)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+			uint16_t count = (uint16_t)v.count;
+			if (auto err = _msgpack_push_uint16(self, count)) return err;
 		}
 		else if (v.count <= UINT32_MAX)
 		{
 			uint8_t prefix = 0xdd;
-			if (auto err = _msgpack_push(self, prefix)) return err;
-			uint8_t count = (uint8_t)v.count;
-			if (auto err = _msgpack_push(self, count)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+			uint32_t count = (uint32_t)v.count;
+			if (auto err = _msgpack_push_uint32(self, count)) return err;
 		}
 		else
 		{
@@ -359,6 +445,42 @@ namespace mn
 		return {};
 	}
 
+	template<typename T, size_t N>
+	inline static Err
+	msgpack(Msgpack_Writer& self, const T (&arr)[N])
+	{
+		if (N <= 15)
+		{
+			uint8_t prefix = (uint8_t)N;
+			prefix |= 0x90;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+		}
+		else if (N <= UINT16_MAX)
+		{
+			uint8_t prefix = 0xdc;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+			uint16_t count = (uint16_t)N;
+			if (auto err = _msgpack_push_uint16(self, count)) return err;
+		}
+		else if (N <= UINT32_MAX)
+		{
+			uint8_t prefix = 0xdd;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+			uint32_t count = (uint32_t)N;
+			if (auto err = _msgpack_push_uint32(self, count)) return err;
+		}
+		else
+		{
+			mn_unreachable();
+			return errf("array with count larger than 32 bit is not supported");
+		}
+
+		for (const auto& a: arr)
+			if (auto err = msgpack(self, a))
+				return err;
+		return {};
+	}
+
 	template<typename TKey, typename TValue, typename THash>
 	inline static Err
 	msgpack(Msgpack_Writer& self, const Map<TKey, TValue, THash>& v)
@@ -367,21 +489,21 @@ namespace mn
 		{
 			uint8_t prefix = (uint8_t)v.count;
 			prefix |= 0x80;
-			if (auto err = _msgpack_push(self, prefix)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 		}
 		else if (v.count <= UINT16_MAX)
 		{
 			uint8_t prefix = 0xde;
-			if (auto err = _msgpack_push(self, prefix)) return err;
-			uint8_t count = (uint8_t)v.count;
-			if (auto err = _msgpack_push(self, count)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+			uint16_t count = (uint16_t)v.count;
+			if (auto err = _msgpack_push_uint16(self, count)) return err;
 		}
 		else if (v.count <= UINT32_MAX)
 		{
 			uint8_t prefix = 0xdf;
-			if (auto err = _msgpack_push(self, prefix)) return err;
-			uint8_t count = (uint8_t)v.count;
-			if (auto err = _msgpack_push(self, count)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
+			uint32_t count = (uint32_t)v.count;
+			if (auto err = _msgpack_push_uint32(self, count)) return err;
 		}
 		else
 		{
@@ -413,11 +535,119 @@ namespace mn
 		return {};
 	}
 
-	template<typename T>
 	inline static Err
-	_msgpack_pop(Msgpack_Reader& self, T& v)
+	_msgpack_pop_uint8(Msgpack_Reader& self, uint8_t& v)
 	{
 		return _msgpack_pop(self, Block{&v, sizeof(v)});
+	}
+
+	inline static Err
+	_msgpack_pop_uint16(Msgpack_Reader& self, uint16_t& v)
+	{
+		if (auto err = _msgpack_pop(self, Block{&v, sizeof(v)})) return err;
+
+		if (system_endianness() == ENDIAN_LITTLE)
+			v = byteswap_uint16(v);
+
+		return {};
+	}
+
+	inline static Err
+	_msgpack_pop_uint32(Msgpack_Reader& self, uint32_t& v)
+	{
+		if (auto err = _msgpack_pop(self, Block{&v, sizeof(v)})) return err;
+
+		if (system_endianness() == ENDIAN_LITTLE)
+			v = byteswap_uint32(v);
+
+		return {};
+	}
+
+	inline static Err
+	_msgpack_pop_uint64(Msgpack_Reader& self, uint64_t& v)
+	{
+		if (auto err = _msgpack_pop(self, Block{&v, sizeof(v)})) return err;
+
+		if (system_endianness() == ENDIAN_LITTLE)
+			v = byteswap_uint64(v);
+
+		return {};
+	}
+
+	inline static Err
+	_msgpack_pop_int8(Msgpack_Reader& self, int8_t& v)
+	{
+		return _msgpack_pop(self, Block{&v, sizeof(v)});
+	}
+
+	inline static Err
+	_msgpack_pop_int16(Msgpack_Reader& self, int16_t& v)
+	{
+		if (auto err = _msgpack_pop(self, Block{&v, sizeof(v)})) return err;
+
+		if (system_endianness() == ENDIAN_LITTLE)
+		{
+			auto res = byteswap_uint16(*(uint16_t*)&v);
+			v = *(int16_t*)&res;
+		}
+
+		return {};
+	}
+
+	inline static Err
+	_msgpack_pop_int32(Msgpack_Reader& self, int32_t& v)
+	{
+		if (auto err = _msgpack_pop(self, Block{&v, sizeof(v)})) return err;
+
+		if (system_endianness() == ENDIAN_LITTLE)
+		{
+			auto res = byteswap_uint32(*(uint32_t*)&v);
+			v = *(int32_t*)&res;
+		}
+
+		return {};
+	}
+
+	inline static Err
+	_msgpack_pop_int64(Msgpack_Reader& self, int64_t& v)
+	{
+		if (auto err = _msgpack_pop(self, Block{&v, sizeof(v)})) return err;
+
+		if (system_endianness() == ENDIAN_LITTLE)
+		{
+			auto res = byteswap_uint64(*(uint64_t*)&v);
+			v = *(int64_t*)&res;
+		}
+
+		return {};
+	}
+
+	inline static Err
+	_msgpack_pop_float(Msgpack_Reader& self, float& v)
+	{
+		if (auto err = _msgpack_pop(self, Block{&v, sizeof(v)})) return err;
+
+		if (system_endianness() == ENDIAN_LITTLE)
+		{
+			auto res = byteswap_uint32(*(uint32_t*)&v);
+			v = *(float*)&res;
+		}
+
+		return {};
+	}
+
+	inline static Err
+	_msgpack_pop_double(Msgpack_Reader& self, double& v)
+	{
+		if (auto err = _msgpack_pop(self, Block{&v, sizeof(v)})) return err;
+
+		if (system_endianness() == ENDIAN_LITTLE)
+		{
+			auto res = byteswap_uint64(*(uint64_t*)&v);
+			v = *(double*)&res;
+		}
+
+		return {};
 	}
 
 	inline static Msgpack_Reader
@@ -432,7 +662,7 @@ namespace mn
 	msgpack(Msgpack_Reader& self, bool& res)
 	{
 		uint8_t rep{};
-		if (auto err = _msgpack_pop(self, rep)) return err;
+		if (auto err = _msgpack_pop_uint8(self, rep)) return err;
 		if (rep == 0xc3)
 			res = true;
 		else if (rep == 0xc2)
@@ -446,7 +676,7 @@ namespace mn
 	msgpack(Msgpack_Reader& self, uint64_t& res)
 	{
 		uint8_t prefix{};
-		if (auto err = _msgpack_pop(self, prefix)) return err;
+		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
 		if (prefix <= 0x7f)
 		{
@@ -455,25 +685,25 @@ namespace mn
 		else if (prefix == 0xcc)
 		{
 			uint8_t value{};
-			if (auto err = _msgpack_pop(self, value)) return err;
+			if (auto err = _msgpack_pop_uint8(self, value)) return err;
 			res = value;
 		}
 		else if (prefix == 0xcd)
 		{
 			uint16_t value{};
-			if (auto err = _msgpack_pop(self, value)) return err;
+			if (auto err = _msgpack_pop_uint16(self, value)) return err;
 			res = value;
 		}
 		else if (prefix == 0xce)
 		{
 			uint32_t value{};
-			if (auto err = _msgpack_pop(self, value)) return err;
+			if (auto err = _msgpack_pop_uint32(self, value)) return err;
 			res = value;
 		}
 		else if (prefix == 0xcf)
 		{
 			uint64_t value{};
-			if (auto err = _msgpack_pop(self, value)) return err;
+			if (auto err = _msgpack_pop_uint64(self, value)) return err;
 			res = value;
 		}
 		else
@@ -520,34 +750,34 @@ namespace mn
 	msgpack(Msgpack_Reader& self, int64_t& res)
 	{
 		uint8_t prefix{};
-		if (auto err = _msgpack_pop(self, prefix)) return err;
+		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
 		if (prefix <= 0x7f || prefix >= 0xE0)
 		{
-			res = (int64_t)prefix;
+			res = *(int8_t*)&prefix;
 		}
 		else if (prefix == 0xd0)
 		{
 			int8_t value{};
-			if (auto err = _msgpack_pop(self, value)) return err;
+			if (auto err = _msgpack_pop_int8(self, value)) return err;
 			res = value;
 		}
 		else if (prefix == 0xd1)
 		{
 			int16_t value{};
-			if (auto err = _msgpack_pop(self, value)) return err;
+			if (auto err = _msgpack_pop_int16(self, value)) return err;
 			res = value;
 		}
 		else if (prefix == 0xd2)
 		{
 			int32_t value{};
-			if (auto err = _msgpack_pop(self, value)) return err;
+			if (auto err = _msgpack_pop_int32(self, value)) return err;
 			res = value;
 		}
 		else if (prefix == 0xd3)
 		{
 			int64_t value{};
-			if (auto err = _msgpack_pop(self, value)) return err;
+			if (auto err = _msgpack_pop_int64(self, value)) return err;
 			res = value;
 		}
 		else
@@ -600,13 +830,13 @@ namespace mn
 	msgpack(Msgpack_Reader& self, float& res)
 	{
 		uint8_t prefix{};
-		if (auto err = _msgpack_pop(self, prefix)) return err;
+		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
 		if (prefix != 0xca)
 			return errf("invalid float prefix '{}'", prefix);
 
 		float value{};
-		if (auto err = _msgpack_pop(self, value)) return err;
+		if (auto err = _msgpack_pop_float(self, value)) return err;
 		res = value;
 		return {};
 	}
@@ -615,13 +845,13 @@ namespace mn
 	msgpack(Msgpack_Reader& self, double& res)
 	{
 		uint8_t prefix{};
-		if (auto err = _msgpack_pop(self, prefix)) return err;
+		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
 		if (prefix != 0xcb)
 			return errf("invalid double prefix '{}'", prefix);
 
 		double value{};
-		if (auto err = _msgpack_pop(self, value)) return err;
+		if (auto err = _msgpack_pop_double(self, value)) return err;
 		res = value;
 		return {};
 	}
@@ -630,7 +860,7 @@ namespace mn
 	msgpack(Msgpack_Reader& self, Str& res)
 	{
 		uint8_t prefix{};
-		if (auto err = _msgpack_pop(self, prefix)) return err;
+		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
 		if (prefix >= 0xa0 && prefix <= 0xbf)
 		{
@@ -641,21 +871,21 @@ namespace mn
 		else if (prefix == 0xd9)
 		{
 			uint8_t count{};
-			if (auto err = _msgpack_pop(self, count)) return err;
+			if (auto err = _msgpack_pop_uint8(self, count)) return err;
 			str_resize(res, count);
 			return _msgpack_pop(self, block_from(res));
 		}
 		else if (prefix == 0xda)
 		{
 			uint16_t count{};
-			if (auto err = _msgpack_pop(self, count)) return err;
+			if (auto err = _msgpack_pop_uint16(self, count)) return err;
 			str_resize(res, count);
 			return _msgpack_pop(self, block_from(res));
 		}
 		else if (prefix == 0xdb)
 		{
 			uint32_t count{};
-			if (auto err = _msgpack_pop(self, count)) return err;
+			if (auto err = _msgpack_pop_uint32(self, count)) return err;
 			str_resize(res, count);
 			return _msgpack_pop(self, block_from(res));
 		}
@@ -669,12 +899,12 @@ namespace mn
 	msgpack(Msgpack_Reader& self, Block& res, Allocator allocator = allocator_top())
 	{
 		uint8_t prefix{};
-		if (auto err = _msgpack_pop(self, prefix)) return err;
+		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
 		if (prefix == 0xc4)
 		{
 			uint8_t count{};
-			if (auto err = _msgpack_pop(self, count)) return err;
+			if (auto err = _msgpack_pop_uint8(self, count)) return err;
 
 			auto value = alloc_from(allocator, count, alignof(char));
 			mn_defer { free_from(allocator, value); };
@@ -686,7 +916,7 @@ namespace mn
 		else if (prefix == 0xc5)
 		{
 			uint16_t count{};
-			if (auto err = _msgpack_pop(self, count)) return err;
+			if (auto err = _msgpack_pop_uint16(self, count)) return err;
 
 			auto value = alloc_from(allocator, count, alignof(char));
 			mn_defer { free_from(allocator, value); };
@@ -698,7 +928,7 @@ namespace mn
 		else if (prefix == 0xc6)
 		{
 			uint32_t count{};
-			if (auto err = _msgpack_pop(self, count)) return err;
+			if (auto err = _msgpack_pop_uint32(self, count)) return err;
 
 			auto value = alloc_from(allocator, count, alignof(char));
 			mn_defer { free_from(allocator, value); };
@@ -718,7 +948,7 @@ namespace mn
 	msgpack(Msgpack_Reader& self, Buf<T>& res)
 	{
 		uint8_t prefix{};
-		if (auto err = _msgpack_pop(self, prefix)) return err;
+		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
 		if (prefix >= 0x90 && prefix <= 0x9f)
 		{
@@ -728,13 +958,13 @@ namespace mn
 		else if (prefix == 0xdc)
 		{
 			uint16_t count{};
-			if (auto err = _msgpack_pop(self, count)) return err;
+			if (auto err = _msgpack_pop_uint16(self, count)) return err;
 			buf_reserve(res, count);
 		}
 		else if (prefix == 0xdd)
 		{
 			uint32_t count{};
-			if (auto err = _msgpack_pop(self, count)) return err;
+			if (auto err = _msgpack_pop_uint32(self, count)) return err;
 			buf_reserve(res, count);
 		}
 		else
@@ -751,12 +981,49 @@ namespace mn
 		return {};
 	}
 
+	template<typename T, size_t N>
+	inline static Err
+	msgpack(Msgpack_Reader& self, T (&res)[N])
+	{
+		uint8_t prefix{};
+		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
+
+		size_t array_count = 0;
+		if (prefix >= 0x90 && prefix <= 0x9f)
+		{
+			array_count = prefix & 0xf;
+		}
+		else if (prefix == 0xdc)
+		{
+			uint16_t count{};
+			if (auto err = _msgpack_pop_uint16(self, count)) return err;
+			array_count = count;
+		}
+		else if (prefix == 0xdd)
+		{
+			uint32_t count{};
+			if (auto err = _msgpack_pop_uint32(self, count)) return err;
+			array_count = count;
+		}
+		else
+		{
+			return errf("invalid array prefix '{}'", prefix);
+		}
+
+		if (array_count != N)
+			return errf("expected array count '{}' but found '{}'", N, array_count);
+
+		for (size_t i = 0; i < N; ++i)
+			if (auto err = msgpack(self, res[i])) return err;
+		return {};
+	}
+
 	template<typename TKey, typename TValue, typename THash>
 	inline static Err
 	msgpack(Msgpack_Reader& self, Map<TKey, TValue, THash>& res)
 	{
 		uint8_t prefix{};
-		if (auto err = _msgpack_pop(self, prefix)) return err;
+		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
 		size_t map_count = 0;
 		if (prefix >= 0x80 && prefix <= 0x8f)
@@ -766,13 +1033,13 @@ namespace mn
 		else if (prefix == 0xdc)
 		{
 			uint16_t count{};
-			if (auto err = _msgpack_pop(self, count)) return err;
+			if (auto err = _msgpack_pop_uint16(self, count)) return err;
 			map_count = count;
 		}
 		else if (prefix == 0xdd)
 		{
 			uint32_t count{};
-			if (auto err = _msgpack_pop(self, count)) return err;
+			if (auto err = _msgpack_pop_uint32(self, count)) return err;
 			map_count = count;
 		}
 		else
@@ -826,21 +1093,21 @@ namespace mn
 		{
 			uint8_t prefix = (uint8_t)fields_count;
 			prefix |= 0x80;
-			if (auto err = _msgpack_push(self, prefix)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 		}
 		else if (fields_count <= UINT16_MAX)
 		{
 			uint8_t prefix = 0xde;
-			if (auto err = _msgpack_push(self, prefix)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 			uint8_t count = (uint8_t)fields_count;
-			if (auto err = _msgpack_push(self, count)) return err;
+			if (auto err = _msgpack_push_uint8(self, count)) return err;
 		}
 		else if (fields_count <= UINT32_MAX)
 		{
 			uint8_t prefix = 0xdf;
-			if (auto err = _msgpack_push(self, prefix)) return err;
+			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
 			uint8_t count = (uint8_t)fields_count;
-			if (auto err = _msgpack_push(self, count)) return err;
+			if (auto err = _msgpack_push_uint8(self, count)) return err;
 		}
 		else
 		{
@@ -860,7 +1127,7 @@ namespace mn
 	msgpack_struct(Msgpack_Reader& self, std::initializer_list<Msgpack_Field> fields)
 	{
 		uint8_t prefix{};
-		if (auto err = _msgpack_pop(self, prefix)) return err;
+		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
 		size_t fields_count = 0;
 		if (prefix >= 0x80 && prefix <= 0x8f)
@@ -870,13 +1137,13 @@ namespace mn
 		else if (prefix == 0xdc)
 		{
 			uint16_t count{};
-			if (auto err = _msgpack_pop(self, count)) return err;
+			if (auto err = _msgpack_pop_uint16(self, count)) return err;
 			fields_count = count;
 		}
 		else if (prefix == 0xdd)
 		{
 			uint32_t count{};
-			if (auto err = _msgpack_pop(self, count)) return err;
+			if (auto err = _msgpack_pop_uint32(self, count)) return err;
 			fields_count = count;
 		}
 		else

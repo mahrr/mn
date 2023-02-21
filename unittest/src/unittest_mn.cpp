@@ -25,6 +25,7 @@
 #include <mn/Json.h>
 #include <mn/Regex.h>
 #include <mn/Log.h>
+#include <mn/Msgpack.h>
 
 #include <chrono>
 #include <iostream>
@@ -32,6 +33,16 @@
 
 #define ANKERL_NANOBENCH_IMPLEMENT 1
 #include <nanobench.h>
+
+namespace mn
+{
+	inline static std::ostream&
+	operator<<(std::ostream& os, const mn::Str& value)
+	{
+		os << value.ptr;
+		return os;
+	}
+}
 
 TEST_CASE("allocation")
 {
@@ -1692,4 +1703,244 @@ TEST_CASE("blocking chan_stream workers")
 	auto [size, err] = mn::stream_copy(mn::Block{dst_buffer, 4096}, stream_out2);
 	CHECK(err == mn::IO_ERROR_NONE);
 	CHECK(size == 4096);
+}
+
+template<typename T>
+inline static mn::Str
+msgpack_encode_test(const T& v)
+{
+	auto [bytes_, err] = mn::msgpack_encode(v);
+	REQUIRE(!err);
+	auto bytes = bytes_;
+	mn_defer { mn::str_free(bytes); };
+
+	auto res = mn::str_with_allocator(mn::memory::tmp());
+	res = mn::strf(res, "[");
+	for (size_t i = 0; i < bytes.count; ++i)
+	{
+		if (i > 0)
+			res = mn::strf(res, ", ");
+		res = mn::strf(res, "{:x}", (uint8_t)bytes[i]);
+	}
+	res = mn::strf(res, "]");
+	return res;
+}
+
+template<typename T>
+inline static T
+msgpack_decode_test(std::initializer_list<uint8_t> bytes)
+{
+	auto block = mn::Block{(void*)bytes.begin(), bytes.size()};
+
+	T v{};
+	auto err = mn::msgpack_decode(block, v);
+	REQUIRE(!err);
+	return v;
+}
+
+TEST_CASE("msgpack: nil")
+{
+	auto bytes = msgpack_encode_test(nullptr);
+	CHECK(bytes == "[c0]");
+}
+
+TEST_CASE("msgpack: bool")
+{
+	CHECK(msgpack_encode_test(false) == "[c2]");
+	CHECK(msgpack_encode_test(true) == "[c3]");
+
+	CHECK(msgpack_decode_test<bool>({0xc2}) == false);
+	CHECK(msgpack_decode_test<bool>({0xc3}) == true);
+}
+
+TEST_CASE("msgpack: binary")
+{
+	uint8_t buffer[] = {0, 255};
+	CHECK(msgpack_encode_test(mn::Block{buffer, sizeof(buffer)}) == "[c4, 2, 0, ff]");
+
+	mn::allocator_push(mn::memory::tmp());
+	mn_defer { mn::allocator_pop(); };
+
+	auto out_buffer = msgpack_decode_test<mn::Block>({0xc4, 0x2, 0x0, 0xff});
+	CHECK(out_buffer.size == 2);
+	CHECK(((uint8_t*)out_buffer.ptr)[0] == 0);
+	CHECK(((uint8_t*)out_buffer.ptr)[1] == 255);
+}
+
+TEST_CASE("msgpack: numbers")
+{
+	CHECK(msgpack_encode_test(uint64_t(0)) == "[0]");
+	CHECK(msgpack_encode_test(uint64_t(255)) == "[cc, ff]");
+	CHECK(msgpack_encode_test(uint64_t(256)) == "[cd, 1, 0]");
+	CHECK(msgpack_encode_test(uint64_t(65535)) == "[cd, ff, ff]");
+	CHECK(msgpack_encode_test(uint64_t(65536)) == "[ce, 0, 1, 0, 0]");
+	CHECK(msgpack_encode_test(uint64_t(4294967295)) == "[ce, ff, ff, ff, ff]");
+	CHECK(msgpack_encode_test(uint64_t(4294967296)) == "[cf, 0, 0, 0, 1, 0, 0, 0, 0]");
+	CHECK(msgpack_encode_test(uint64_t(18446744073709551615ULL)) == "[cf, ff, ff, ff, ff, ff, ff, ff, ff]");
+	CHECK(msgpack_encode_test(int64_t(0)) == "[0]");
+	CHECK(msgpack_encode_test(int64_t(127)) == "[7f]");
+	CHECK(msgpack_encode_test(int64_t(128)) == "[d1, 0, 80]");
+	CHECK(msgpack_encode_test(int64_t(32767)) == "[d1, 7f, ff]");
+	CHECK(msgpack_encode_test(int64_t(32768)) == "[d2, 0, 0, 80, 0]");
+	CHECK(msgpack_encode_test(int64_t(2147483647)) == "[d2, 7f, ff, ff, ff]");
+	CHECK(msgpack_encode_test(int64_t(2147483648)) == "[d3, 0, 0, 0, 0, 80, 0, 0, 0]");
+	CHECK(msgpack_encode_test(int64_t(9223372036854775807LL)) == "[d3, 7f, ff, ff, ff, ff, ff, ff, ff]");
+	CHECK(msgpack_encode_test(int64_t(-32)) == "[e0]");
+	CHECK(msgpack_encode_test(int64_t(-33)) == "[d0, df]");
+	CHECK(msgpack_encode_test(int64_t(-128)) == "[d0, 80]");
+	CHECK(msgpack_encode_test(int64_t(-129)) == "[d1, ff, 7f]");
+	CHECK(msgpack_encode_test(int64_t(-32768)) == "[d1, 80, 0]");
+	CHECK(msgpack_encode_test(int64_t(-32769)) == "[d2, ff, ff, 7f, ff]");
+	CHECK(msgpack_encode_test(int64_t(-2147483648LL)) == "[d2, 80, 0, 0, 0]");
+	CHECK(msgpack_encode_test(int64_t(-2147483649LL)) == "[d3, ff, ff, ff, ff, 7f, ff, ff, ff]");
+	CHECK(msgpack_encode_test(int64_t(-9223372036854775808LL)) == "[d3, 80, 0, 0, 0, 0, 0, 0, 0]");
+	CHECK(msgpack_encode_test(float(42.42)) == "[ca, 42, 29, ae, 14]");
+	CHECK(msgpack_encode_test(double(42.42)) == "[cb, 40, 45, 35, c2, 8f, 5c, 28, f6]");
+
+	CHECK(msgpack_decode_test<uint64_t>({0x0}) == 0);
+	CHECK(msgpack_decode_test<uint64_t>({0xcc, 0xff}) == 255);
+	CHECK(msgpack_decode_test<uint64_t>({0xcd, 0x1, 0x0}) == 256);
+	CHECK(msgpack_decode_test<uint64_t>({0xcd, 0xff, 0xff}) == 65535);
+	CHECK(msgpack_decode_test<uint64_t>({0xce, 0x0, 0x1, 0x0, 0x0}) == 65536);
+	CHECK(msgpack_decode_test<uint64_t>({0xce, 0xff, 0xff, 0xff, 0xff}) == 4294967295);
+	CHECK(msgpack_decode_test<uint64_t>({0xcf, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0}) == 4294967296);
+	CHECK(msgpack_decode_test<uint64_t>({0xcf, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}) == 18446744073709551615ULL);
+	CHECK(msgpack_decode_test<int64_t>({0x0}) == 0);
+	CHECK(msgpack_decode_test<int64_t>({0x7f}) == 127);
+	CHECK(msgpack_decode_test<int64_t>({0xd1, 0x0, 0x80}) == 128);
+	CHECK(msgpack_decode_test<int64_t>({0xd1, 0x7f, 0xff}) == 32767);
+	CHECK(msgpack_decode_test<int64_t>({0xd2, 0x0, 0x0, 0x80, 0x0}) == 32768);
+	CHECK(msgpack_decode_test<int64_t>({0xd2, 0x7f, 0xff, 0xff, 0xff}) == 2147483647);
+	CHECK(msgpack_decode_test<int64_t>({0xd3, 0x0, 0x0, 0x0, 0x0, 0x80, 0x0, 0x0, 0x0}) == 2147483648);
+	CHECK(msgpack_decode_test<int64_t>({0xd3, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}) == 9223372036854775807LL);
+	CHECK(msgpack_decode_test<int64_t>({0xe0}) == -32);
+	CHECK(msgpack_decode_test<int64_t>({0xd0, 0xdf}) == -33);
+	CHECK(msgpack_decode_test<int64_t>({0xd0, 0x80}) == -128);
+	CHECK(msgpack_decode_test<int64_t>({0xd1, 0xff, 0x7f}) == -129);
+	CHECK(msgpack_decode_test<int64_t>({0xd1, 0x80, 0x0}) == -32768);
+	CHECK(msgpack_decode_test<int64_t>({0xd2, 0xff, 0xff, 0x7f, 0xff}) == -32769);
+	CHECK(msgpack_decode_test<int64_t>({0xd2, 0x80, 0x0, 0x0, 0x0}) == -2147483648LL);
+	CHECK(msgpack_decode_test<int64_t>({0xd3, 0xff, 0xff, 0xff, 0xff, 0x7f, 0xff, 0xff, 0xff}) == -2147483649LL);
+	CHECK(msgpack_decode_test<int64_t>({0xd3, 0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}) == -9223372036854775808LL );
+	CHECK(msgpack_decode_test<float>({0xca, 0x42, 0x29, 0xae, 0x14}) == 42.42f);
+	CHECK(msgpack_decode_test<double>({0xcb, 0x40, 0x45, 0x35, 0xc2, 0x8f, 0x5c, 0x28, 0xf6}) == 42.42);
+}
+
+TEST_CASE("msgpack: string")
+{
+	CHECK(msgpack_encode_test("") == "[a0]");
+	CHECK(msgpack_encode_test("a") == "[a1, 61]");
+	CHECK(msgpack_encode_test("1234567890") == "[aa, 31, 32, 33, 34, 35, 36, 37, 38, 39, 30]");
+	CHECK(msgpack_encode_test("1234567890123456789012345678901") == "[bf, 31, 32, 33, 34, 35, 36, 37, 38, 39, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 30, 31]");
+	CHECK(msgpack_encode_test("12345678901234567890123456789012") == "[d9, 20, 31, 32, 33, 34, 35, 36, 37, 38, 39, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 30, 31, 32]");
+	CHECK(msgpack_encode_test(u8"Кириллица") == "[b2, d0, 9a, d0, b8, d1, 80, d0, b8, d0, bb, d0, bb, d0, b8, d1, 86, d0, b0]");
+	CHECK(msgpack_encode_test(u8"ひらがな") == "[ac, e3, 81, b2, e3, 82, 89, e3, 81, 8c, e3, 81, aa]");
+	CHECK(msgpack_encode_test(u8"한글") == "[a6, ed, 95, 9c, ea, b8, 80]");
+	CHECK(msgpack_encode_test(u8"汉字") == "[a6, e6, b1, 89, e5, ad, 97]");
+	CHECK(msgpack_encode_test(u8"مرحبا") == "[aa, d9, 85, d8, b1, d8, ad, d8, a8, d8, a7]");
+	CHECK(msgpack_encode_test(u8"❤") == "[a3, e2, 9d, a4]");
+	CHECK(msgpack_encode_test(u8"🍺") == "[a4, f0, 9f, 8d, ba]");
+
+	mn::allocator_push(mn::memory::tmp());
+	mn_defer { mn::allocator_pop(); };
+
+	CHECK(msgpack_decode_test<mn::Str>({0xa0}) == "");
+	CHECK(msgpack_decode_test<mn::Str>({0xa1, 0x61}) == "a");
+	CHECK(msgpack_decode_test<mn::Str>({0xaa, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30}) == "1234567890");
+	CHECK(msgpack_decode_test<mn::Str>({0xbf, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31}) == "1234567890123456789012345678901");
+	CHECK(msgpack_decode_test<mn::Str>({0xd9, 0x20, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32}) == "12345678901234567890123456789012");
+	CHECK(msgpack_decode_test<mn::Str>({0xb2, 0xd0, 0x9a, 0xd0, 0xb8, 0xd1, 0x80, 0xd0, 0xb8, 0xd0, 0xbb, 0xd0, 0xbb, 0xd0, 0xb8, 0xd1, 0x86, 0xd0, 0xb0}) == u8"Кириллица");
+	CHECK(msgpack_decode_test<mn::Str>({0xac, 0xe3, 0x81, 0xb2, 0xe3, 0x82, 0x89, 0xe3, 0x81, 0x8c, 0xe3, 0x81, 0xaa}) == u8"ひらがな");
+	CHECK(msgpack_decode_test<mn::Str>({0xa6, 0xed, 0x95, 0x9c, 0xea, 0xb8, 0x80}) == u8"한글");
+	CHECK(msgpack_decode_test<mn::Str>({0xa6, 0xe6, 0xb1, 0x89, 0xe5, 0xad, 0x97}) == u8"汉字");
+	CHECK(msgpack_decode_test<mn::Str>({0xaa, 0xd9, 0x85, 0xd8, 0xb1, 0xd8, 0xad, 0xd8, 0xa8, 0xd8, 0xa7}) == u8"مرحبا");
+	CHECK(msgpack_decode_test<mn::Str>({0xa3, 0xe2, 0x9d, 0xa4}) == u8"❤");
+	CHECK(msgpack_decode_test<mn::Str>({0xa4, 0xf0, 0x9f, 0x8d, 0xba}) == u8"🍺");
+}
+
+TEST_CASE("msgpack: array")
+{
+	auto empty = mn::buf_lit<int>({});
+	int simple[] = {1};
+	int medium[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+	int big[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+	CHECK(msgpack_encode_test(empty) == "[90]");
+	CHECK(msgpack_encode_test(simple) == "[91, 1]");
+	CHECK(msgpack_encode_test(medium) == "[9f, 1, 2, 3, 4, 5, 6, 7, 8, 9, a, b, c, d, e, f]");
+	CHECK(msgpack_encode_test(big) == "[dc, 0, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, a, b, c, d, e, f, 10]");
+
+	mn::allocator_push(mn::memory::tmp());
+	mn_defer { mn::allocator_pop(); };
+
+	auto out_empty = msgpack_decode_test<mn::Buf<int>>({0x90});
+	CHECK(out_empty.count == 0);
+
+	auto out_simple = msgpack_decode_test<mn::Buf<int>>({0x91, 0x1});
+	CHECK(out_simple.count == 1);
+	CHECK(out_simple[0] == 1);
+
+	auto out_medium = msgpack_decode_test<mn::Buf<int>>({0x9f, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf});
+	CHECK(out_medium.count == 15);
+	for (size_t i = 0; i < out_medium.count; ++i)
+		CHECK(out_medium[i] == i + 1);
+
+	auto out_big = msgpack_decode_test<mn::Buf<int>>({0xdc, 0x0, 0x10, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x10});
+	CHECK(out_big.count == 16);
+	for (size_t i = 0; i < out_big.count; ++i)
+		CHECK(out_big[i] == i + 1);
+}
+
+TEST_CASE("msgpack: map")
+{
+	auto empty = mn::map_with_allocator<mn::Str, int>(mn::memory::tmp());
+	auto simple = mn::map_with_allocator<mn::Str, int>(mn::memory::tmp());
+	mn::map_insert(simple, "a"_mnstr, 1);
+
+	CHECK(msgpack_encode_test(empty) == "[80]");
+	CHECK(msgpack_encode_test(simple) == "[81, a1, 61, 1]");
+
+	mn::allocator_push(mn::memory::tmp());
+	mn_defer { mn::allocator_pop(); };
+
+	auto out_empty = msgpack_decode_test<mn::Map<mn::Str, int>>({0x80});
+	CHECK(out_empty.count == 0);
+
+	auto out_simple = msgpack_decode_test<mn::Map<mn::Str, int>>({0x81, 0xa1, 0x61, 0x1});
+	CHECK(out_simple.count == 1);
+	CHECK(out_simple.values[0].key == "a");
+	CHECK(out_simple.values[0].value == 1);
+}
+
+struct Person
+{
+	mn::Str name;
+	int age;
+
+	inline bool
+	operator==(const Person& other)
+	{
+		return other.name == name && other.age == age;
+	}
+};
+
+template<typename TArchive>
+inline static mn::Err
+msgpack(TArchive& self, const Person& p)
+{
+	return mn::msgpack_struct(self, {
+		{"name", &p.name},
+		{"age", &p.age},
+	});
+}
+
+TEST_CASE("msgpack: struct")
+{
+	Person mostafa{"Mostafa"_mnstr, 29};
+	CHECK(msgpack_encode_test(mostafa) == "[82, a4, 6e, 61, 6d, 65, a7, 4d, 6f, 73, 74, 61, 66, 61, a3, 61, 67, 65, 1d]");
+
+	mn::allocator_push(mn::memory::tmp());
+	mn_defer { mn::allocator_pop(); };
+
+	auto out_mostafa = msgpack_decode_test<Person>({0x82, 0xa4, 0x6e, 0x61, 0x6d, 0x65, 0xa7, 0x4d, 0x6f, 0x73, 0x74, 0x61, 0x66, 0x61, 0xa3, 0x61, 0x67, 0x65, 0x1d});
+	CHECK(out_mostafa == mostafa);
 }
