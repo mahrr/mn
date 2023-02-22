@@ -219,7 +219,7 @@ namespace mn
 	{
 		if (timeout.milliseconds == INFINITE_TIMEOUT.milliseconds)
 		{
-			auto res = ::write(self->linux_handle, data.ptr, data.size);
+			auto res = ::write(self->macos_handle, data.ptr, data.size);
 			if (res == -1)
 				return IO_ERROR_UNKNOWN;
 			else
@@ -228,7 +228,7 @@ namespace mn
 		else
 		{
 			pollfd pfd_write{};
-			pfd_write.fd = self->linux_handle;
+			pfd_write.fd = self->macos_handle;
 			pfd_write.events = POLLOUT;
 
 			int milliseconds = 0;
@@ -245,7 +245,7 @@ namespace mn
 			int ready = ::poll(&pfd_write, 1, milliseconds);
 			if (ready > 0)
 			{
-				auto res = ::write(self->linux_handle, data.ptr, data.size);
+				auto res = ::write(self->macos_handle, data.ptr, data.size);
 				if (res == -1)
 					return IO_ERROR_UNKNOWN;
 				else
@@ -267,7 +267,7 @@ namespace mn
 	{
 		if (timeout.milliseconds == INFINITE_TIMEOUT.milliseconds)
 		{
-			auto res = ::read(self->linux_handle, data.ptr, data.size);
+			auto res = ::read(self->macos_handle, data.ptr, data.size);
 			if (res == -1)
 				return IO_ERROR_UNKNOWN;
 			else if (res == 0)
@@ -278,7 +278,7 @@ namespace mn
 		else
 		{
 			pollfd pfd_read{};
-			pfd_read.fd = self->linux_handle;
+			pfd_read.fd = self->macos_handle;
 			pfd_read.events = POLLIN;
 
 			int milliseconds = 0;
@@ -295,7 +295,7 @@ namespace mn
 			int ready = ::poll(&pfd_read, 1, milliseconds);
 			if (ready > 0)
 			{
-				auto res = ::read(self->linux_handle, data.ptr, data.size);
+				auto res = ::read(self->macos_handle, data.ptr, data.size);
 				if (res == -1)
 					return IO_ERROR_UNKNOWN;
 				else if (res == 0)
