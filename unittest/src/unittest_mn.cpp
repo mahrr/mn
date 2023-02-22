@@ -1682,11 +1682,11 @@ TEST_CASE("blocking chan_stream workers")
 	const char src_buffer[4096]{};
 	auto identity = +[](mn::Stream input, mn::Stream output)
 	{
-		char tmp[2048];
+		char tmp[128];
 		while (true)
 		{
 			auto [read_size, read_err] = mn::stream_copy({tmp, 128}, input);
-			if (read_err == mn::IO_ERROR_END_OF_FILE)
+			if (read_size == 0 || read_err)
 				break;
 			auto [write_size, write_err] = mn::stream_copy(output, mn::Block{tmp, read_size});
 			CHECK(write_err == mn::IO_ERROR_NONE);

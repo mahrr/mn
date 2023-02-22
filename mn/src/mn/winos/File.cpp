@@ -366,30 +366,66 @@ namespace mn
 		}
 		else
 		{
-			OVERLAPPED overlapped{};
-			overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-			mn_defer { CloseHandle(overlapped.hEvent); };
-
-			auto res = WriteFile(self->winos_handle, data.ptr, DWORD(data.size), &bytes_written, &overlapped);
-			if (res == false && GetLastError() != ERROR_IO_PENDING)
-				return _get_last_error();
-
-			DWORD milliseconds = 0;
-			if (timeout == INFINITE_TIMEOUT)
-				milliseconds = INFINITE;
-			else if (timeout == NO_TIMEOUT)
-				milliseconds = 0;
-			else
-				milliseconds = DWORD(timeout.milliseconds);
-			auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
-			if (wakeup == WAIT_TIMEOUT)
+			if (timeout.milliseconds == INFINITE_TIMEOUT.milliseconds)
 			{
-				CancelIo(self->winos_handle);
-				return IO_ERROR_TIMEOUT;
+				auto res = WriteFile(self->winos_handle, data.ptr, DWORD(data.size), &bytes_written, NULL);
+				if (res == FALSE)
+					return _get_last_error();
 			}
+			else
+			{
+				LARGE_INTEGER pre_write_position, pre_write_offset;
+				pre_write_offset.QuadPart = 0;
+				if(SetFilePointerEx(self->winos_handle, pre_write_offset, &pre_write_position, FILE_CURRENT) == FALSE)
+				{
+					return _get_last_error();
+				}
+				int64_t write_offset = pre_write_position.QuadPart;
 
-			if (GetOverlappedResult(self->winos_handle, &overlapped, &bytes_written, false) == false)
-				return _get_last_error();
+				OVERLAPPED overlapped{};
+				overlapped.Offset = (DWORD)(write_offset & (0x00000000FFFFFFFF));
+				overlapped.OffsetHigh = (DWORD)(write_offset & (0xFFFFFFFF00000000));
+				overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+				mn_defer { CloseHandle(overlapped.hEvent); };
+
+				auto res = WriteFile(self->winos_handle, data.ptr, DWORD(data.size), &bytes_written, &overlapped);
+				if (res == TRUE)
+				{
+
+				}
+				else if (res == false && GetLastError() != ERROR_IO_PENDING)
+				{
+					return _get_last_error();
+				}
+				else
+				{
+					DWORD milliseconds = 0;
+					if (timeout == INFINITE_TIMEOUT)
+						milliseconds = INFINITE;
+					else if (timeout == NO_TIMEOUT)
+						milliseconds = 0;
+					else
+						milliseconds = DWORD(timeout.milliseconds);
+					auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
+					if (wakeup == WAIT_TIMEOUT)
+					{
+						CancelIo(self->winos_handle);
+						return IO_ERROR_TIMEOUT;
+					}
+
+					if (GetOverlappedResult(self->winos_handle, &overlapped, &bytes_written, false) == false)
+						return _get_last_error();
+
+					write_offset += bytes_written;
+
+					LARGE_INTEGER post_write_position, post_write_offset;
+					post_write_offset.QuadPart = bytes_written;
+					if(SetFilePointerEx(self->winos_handle, post_write_offset, &post_write_position, FILE_CURRENT) == FALSE)
+					{
+						return _get_last_error();
+					}
+				}
+			}
 		}
 
 		return bytes_written;
@@ -428,30 +464,66 @@ namespace mn
 		}
 		else
 		{
-			OVERLAPPED overlapped{};
-			overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-			mn_defer { CloseHandle(overlapped.hEvent); };
-
-			auto res = ReadFile(self->winos_handle, data.ptr, DWORD(data.size), &bytes_read, NULL);
-			if (res == false && GetLastError() != ERROR_IO_PENDING)
-				return _get_last_error();
-
-			DWORD milliseconds = 0;
-			if (timeout == INFINITE_TIMEOUT)
-				milliseconds = INFINITE;
-			else if (timeout == NO_TIMEOUT)
-				milliseconds = 0;
-			else
-				milliseconds = DWORD(timeout.milliseconds);
-			auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
-			if (wakeup == WAIT_TIMEOUT)
+			if (timeout.milliseconds == INFINITE_TIMEOUT.milliseconds)
 			{
-				CancelIo(self->winos_handle);
-				return IO_ERROR_TIMEOUT;
+				auto res = ReadFile(
+					self->winos_handle,
+					data.ptr,
+					DWORD(data.size),
+					&bytes_read,
+					NULL
+				);
+				if (res == false)
+					return _get_last_error();
+				else if (bytes_read == 0)
+					return IO_ERROR_END_OF_FILE;
 			}
+			else
+			{
+				LARGE_INTEGER pre_read_position, pre_read_offset;
+				pre_read_offset.QuadPart = 0;
+				if(SetFilePointerEx(self->winos_handle, pre_read_offset, &pre_read_position, FILE_CURRENT) == FALSE)
+				{
+					return _get_last_error();
+				}
+				int64_t read_offset = pre_read_position.QuadPart;
 
-			if (GetOverlappedResult(self->winos_handle, &overlapped, &bytes_read, false) == FALSE)
-				return _get_last_error();
+				OVERLAPPED overlapped{};
+				overlapped.Offset = (DWORD)(read_offset & (0x00000000FFFFFFFF));
+				overlapped.OffsetHigh = (DWORD)(read_offset & (0xFFFFFFFF00000000));
+				overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+				mn_defer { CloseHandle(overlapped.hEvent); };
+
+				auto res = ReadFile(self->winos_handle, data.ptr, DWORD(data.size), &bytes_read, NULL);
+				if (res == TRUE)
+				{
+					if (GetOverlappedResult(self->winos_handle, &overlapped, &bytes_read, false) == FALSE)
+						return _get_last_error();
+				}
+				else if (res == FALSE && GetLastError() != ERROR_IO_PENDING)
+				{
+					return _get_last_error();
+				}
+				else
+				{
+					DWORD milliseconds = 0;
+					if (timeout == INFINITE_TIMEOUT)
+						milliseconds = INFINITE;
+					else if (timeout == NO_TIMEOUT)
+						milliseconds = 0;
+					else
+						milliseconds = DWORD(timeout.milliseconds);
+					auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
+					if (wakeup == WAIT_TIMEOUT)
+					{
+						CancelIo(self->winos_handle);
+						return IO_ERROR_TIMEOUT;
+					}
+
+					if (GetOverlappedResult(self->winos_handle, &overlapped, &bytes_read, false) == FALSE)
+						return _get_last_error();
+				}
+			}
 		}
 
 		return bytes_read;
@@ -475,7 +547,7 @@ namespace mn
 		offset.QuadPart = 0;
 		if(SetFilePointerEx(self->winos_handle, offset, &position, FILE_CURRENT))
 		{
-			return *(int64_t*)(&position);
+			return position.QuadPart;
 		}
 		return _get_last_error();
 	}

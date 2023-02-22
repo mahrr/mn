@@ -120,6 +120,7 @@ namespace mn
 	}
 
 	// copies bytes from src to dst stream, returns the number of copied bytes
+	// this function cannot return IO_ERROR_END_OF_FILE because it's defined to read until IO_ERROR_END_OF_FILE is encountered
 	inline static Result<size_t, IO_ERROR>
 	stream_copy(IStream* dst, IStream* src)
 	{
@@ -132,7 +133,7 @@ namespace mn
 			if (read_err != IO_ERROR_NONE)
 			{
 				if (read_err == IO_ERROR_END_OF_FILE)
-					return read_err;
+					break;
 				else
 					return read_err;
 			}
@@ -154,6 +155,7 @@ namespace mn
 	}
 
 	// copies bytes from the src stream into the dst block, returns the number of copied bytes
+	// this function cannot return IO_ERROR_END_OF_FILE because it's defined to read until IO_ERROR_END_OF_FILE is encountered
 	inline static Result<size_t, IO_ERROR>
 	stream_copy(Block dst, IStream* src)
 	{
@@ -164,7 +166,12 @@ namespace mn
 		{
 			auto [read_size, read_err] = src->read(Block{ptr, size});
 			if (read_err != IO_ERROR_NONE)
-				return read_err;
+			{
+				if (read_err == IO_ERROR_END_OF_FILE)
+					break;
+				else
+					return read_err;
+			}
 
 			mn_assert(read_size <= size);
 			ptr += read_size;
@@ -175,6 +182,7 @@ namespace mn
 	}
 
 	// copies bytes from the src block into the dst stream, returns the number of copied bytes
+	// this function cannot return IO_ERROR_END_OF_FILE because it's defined to read until IO_ERROR_END_OF_FILE is encountered
 	inline static Result<size_t, IO_ERROR>
 	stream_copy(IStream* dst, Block src)
 	{
@@ -195,21 +203,21 @@ namespace mn
 		return res;
 	}
 
-	// reads as much as possible (until the stream reads 0 bytes) from the given stream into a string
+	// reads as much as possible (until IO_ERROR_END_OF_FILE) from the given stream into a string
+	// this function cannot return IO_ERROR_END_OF_FILE because it's defined to read until IO_ERROR_END_OF_FILE is encountered
 	inline static Result<Str, IO_ERROR>
 	stream_sink(IStream* src, Allocator allocator = allocator_top())
 	{
 		auto res = str_with_allocator(allocator);
 		char _buf[1024];
 		auto buf = block_from(_buf);
-		bool end_of_file = false;
-		while (end_of_file == false)
+		while (true)
 		{
 			auto [read_size, read_err] = src->read(buf);
 			if (read_err != IO_ERROR_NONE)
 			{
 				if (read_err == IO_ERROR_END_OF_FILE)
-					end_of_file = true;
+					break;
 				else
 					return read_err;
 			}
