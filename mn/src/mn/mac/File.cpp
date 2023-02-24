@@ -217,7 +217,10 @@ namespace mn
 	Result<size_t, IO_ERROR>
 	file_write_timeout(File self, Block data, Timeout timeout)
 	{
-		if (timeout.milliseconds == INFINITE_TIMEOUT.milliseconds)
+		worker_block_ahead();
+		mn_defer { worker_block_clear(); };
+
+		if (timeout == INFINITE_TIMEOUT)
 		{
 			auto res = ::write(self->macos_handle, data.ptr, data.size);
 			if (res == -1)
@@ -232,15 +235,10 @@ namespace mn
 			pfd_write.events = POLLOUT;
 
 			int milliseconds = 0;
-			if(timeout == INFINITE_TIMEOUT)
-				milliseconds = -1;
-			else if(timeout == NO_TIMEOUT)
+			if(timeout == NO_TIMEOUT)
 				milliseconds = 0;
 			else
 				milliseconds = int(timeout.milliseconds);
-
-			worker_block_ahead();
-			mn_defer { worker_block_clear(); };
 
 			int ready = ::poll(&pfd_write, 1, milliseconds);
 			if (ready > 0)
@@ -265,7 +263,10 @@ namespace mn
 	Result<size_t, IO_ERROR>
 	file_read_timeout(File self, Block data, Timeout timeout)
 	{
-		if (timeout.milliseconds == INFINITE_TIMEOUT.milliseconds)
+		worker_block_ahead();
+		mn_defer { worker_block_clear(); };
+
+		if (timeout == INFINITE_TIMEOUT)
 		{
 			auto res = ::read(self->macos_handle, data.ptr, data.size);
 			if (res == -1)
@@ -282,15 +283,10 @@ namespace mn
 			pfd_read.events = POLLIN;
 
 			int milliseconds = 0;
-			if(timeout == INFINITE_TIMEOUT)
-				milliseconds = -1;
-			else if(timeout == NO_TIMEOUT)
+			if(timeout == NO_TIMEOUT)
 				milliseconds = 0;
 			else
 				milliseconds = int(timeout.milliseconds);
-
-			worker_block_ahead();
-			mn_defer { worker_block_clear(); };
 
 			int ready = ::poll(&pfd_read, 1, milliseconds);
 			if (ready > 0)
