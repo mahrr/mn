@@ -14,13 +14,17 @@ namespace mn
 	struct Msgpack_Writer
 	{
 		Memory_Stream stream;
+		// we usually don't need allocators in encoders/writer but I've added this to allow users to write the same
+		// templated code for both writer and reader
+		Allocator allocator;
 	};
 
 	inline static Msgpack_Writer
-	msgpack_writer_new()
+	msgpack_writer_new(Allocator allocator = nullptr)
 	{
 		Msgpack_Writer self{};
 		self.stream = memory_stream_new();
+		self.allocator = allocator;
 		return self;
 	}
 
@@ -522,6 +526,7 @@ namespace mn
 	struct Msgpack_Reader
 	{
 		Stream stream;
+		Allocator allocator;
 	};
 
 	inline static Err
@@ -651,10 +656,11 @@ namespace mn
 	}
 
 	inline static Msgpack_Reader
-	msgpack_reader_new(Stream stream)
+	msgpack_reader_new(Stream stream, Allocator allocator = nullptr)
 	{
 		Msgpack_Reader self{};
 		self.stream = stream;
+		self.allocator = allocator;
 		return self;
 	}
 
@@ -862,6 +868,12 @@ namespace mn
 		uint8_t prefix{};
 		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
+		if (self.allocator && res.allocator != self.allocator)
+		{
+			str_free(res);
+			res = str_with_allocator(self.allocator);
+		}
+
 		if (prefix >= 0xa0 && prefix <= 0xbf)
 		{
 			auto count = prefix & 0x1f;
@@ -896,8 +908,25 @@ namespace mn
 	}
 
 	inline static Err
-	msgpack(Msgpack_Reader& self, Block& res, Allocator allocator = allocator_top())
+	msgpack(Msgpack_Reader& self, const char*& res)
 	{
+		Str str{};
+
+		auto err = msgpack(self, str);
+		if (err)
+			return err;
+		res = str.ptr;
+
+		return {};
+	}
+
+	inline static Err
+	msgpack(Msgpack_Reader& self, Block& res)
+	{
+		auto allocator = allocator_top();
+		if (self.allocator)
+			allocator = self.allocator;
+
 		uint8_t prefix{};
 		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
@@ -906,11 +935,20 @@ namespace mn
 			uint8_t count{};
 			if (auto err = _msgpack_pop_uint8(self, count)) return err;
 
-			auto value = alloc_from(allocator, count, alignof(char));
-			mn_defer { free_from(allocator, value); };
+			if (block_is_empty(res))
+			{
+				auto value = alloc_from(allocator, count, alignof(char));
+				mn_defer { free_from(allocator, value); };
 
-			if (auto err = _msgpack_pop(self, value)) return err;
-			res = xchg(value, {});
+				if (auto err = _msgpack_pop(self, value)) return err;
+				res = xchg(value, {});
+			}
+			else
+			{
+				if (res.size != count)
+					return errf("mistmatched binary block size, expected {}, provided {}", count, res.size);
+				if (auto err = _msgpack_pop(self, res)) return err;
+			}
 			return{};
 		}
 		else if (prefix == 0xc5)
@@ -918,11 +956,20 @@ namespace mn
 			uint16_t count{};
 			if (auto err = _msgpack_pop_uint16(self, count)) return err;
 
-			auto value = alloc_from(allocator, count, alignof(char));
-			mn_defer { free_from(allocator, value); };
+			if (block_is_empty(res))
+			{
+				auto value = alloc_from(allocator, count, alignof(char));
+				mn_defer { free_from(allocator, value); };
 
-			if (auto err = _msgpack_pop(self, value)) return err;
-			res = xchg(value, {});
+				if (auto err = _msgpack_pop(self, value)) return err;
+				res = xchg(value, {});
+			}
+			else
+			{
+				if (res.size != count)
+					return errf("mistmatched binary block size, expected {}, provided {}", count, res.size);
+				if (auto err = _msgpack_pop(self, res)) return err;
+			}
 			return{};
 		}
 		else if (prefix == 0xc6)
@@ -930,11 +977,20 @@ namespace mn
 			uint32_t count{};
 			if (auto err = _msgpack_pop_uint32(self, count)) return err;
 
-			auto value = alloc_from(allocator, count, alignof(char));
-			mn_defer { free_from(allocator, value); };
+			if (block_is_empty(res))
+			{
+				auto value = alloc_from(allocator, count, alignof(char));
+				mn_defer { free_from(allocator, value); };
 
-			if (auto err = _msgpack_pop(self, value)) return err;
-			res = xchg(value, {});
+				if (auto err = _msgpack_pop(self, value)) return err;
+				res = xchg(value, {});
+			}
+			else
+			{
+				if (res.size != count)
+					return errf("mistmatched binary block size, expected {}, provided {}", count, res.size);
+				if (auto err = _msgpack_pop(self, res)) return err;
+			}
 			return{};
 		}
 		else
@@ -947,6 +1003,12 @@ namespace mn
 	inline static Err
 	msgpack(Msgpack_Reader& self, Buf<T>& res)
 	{
+		if (self.allocator && res.allocator != self.allocator)
+		{
+			destruct(res);
+			res = buf_with_allocator<T>(self.allocator);
+		}
+
 		uint8_t prefix{};
 		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
@@ -1022,6 +1084,12 @@ namespace mn
 	inline static Err
 	msgpack(Msgpack_Reader& self, Map<TKey, TValue, THash>& res)
 	{
+		if (self.allocator && res._slots.allocator != self.allocator)
+		{
+			destruct(res);
+			res = map_with_allocator<TKey, TValue, THash>(self.allocator);
+		}
+
 		uint8_t prefix{};
 		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
 
@@ -1062,6 +1130,7 @@ namespace mn
 	}
 
 	// struct helper code
+	template<typename T>
 	struct Msgpack_Field
 	{
 		mn::Str _name;
@@ -1069,24 +1138,36 @@ namespace mn
 		Err (*_write)(Msgpack_Writer&, const void*);
 		Err (*_read)(Msgpack_Reader&, void*);
 
-		template<typename T>
-		Msgpack_Field(const char* name, T* value)
+		template<typename TValue>
+		Msgpack_Field(const char* name, TValue* value)
 		{
 			_name = str_lit(name);
 			_value = value;
-			_write = +[](Msgpack_Writer& self, const void* ptr) -> Err {
-				auto value = (const T*)ptr;
-				return msgpack(self, *value);
-			};
-			_read = +[](Msgpack_Reader& self, void* ptr) -> Err {
-				auto value = (std::remove_const_t<T>*)ptr;
-				return msgpack(self, *value);
-			};
+			_write = nullptr;
+			_read = nullptr;
+			if constexpr (std::is_same_v<T, Msgpack_Writer>)
+			{
+				_write = +[](Msgpack_Writer& self, const void* ptr) -> Err {
+					auto value = (const TValue*)ptr;
+					return msgpack(self, *value);
+				};
+			}
+			else if constexpr (std::is_same_v<T, Msgpack_Reader>)
+			{
+				_read = +[](Msgpack_Reader& self, void* ptr) -> Err {
+					auto value = (std::remove_const_t<TValue>*)ptr;
+					return msgpack(self, *value);
+				};
+			}
+			else
+			{
+				static_assert(sizeof(T) == 0, "unreachable");
+			}
 		}
 	};
 
 	inline static Err
-	msgpack_struct(Msgpack_Writer& self, std::initializer_list<Msgpack_Field> fields)
+	msgpack_struct(Msgpack_Writer& self, std::initializer_list<Msgpack_Field<Msgpack_Writer>> fields)
 	{
 		auto fields_count = fields.size();
 		if (fields_count <= 15)
@@ -1124,7 +1205,7 @@ namespace mn
 	}
 
 	inline static Err
-	msgpack_struct(Msgpack_Reader& self, std::initializer_list<Msgpack_Field> fields)
+	msgpack_struct(Msgpack_Reader& self, std::initializer_list<Msgpack_Field<Msgpack_Reader>> fields)
 	{
 		uint8_t prefix{};
 		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
@@ -1180,9 +1261,9 @@ namespace mn
 	// helper encode/decode functions
 	template<typename T>
 	inline static Result<Str>
-	msgpack_encode(const T& value)
+	msgpack_encode(const T& value, Allocator allocator = nullptr)
 	{
-		auto writer = msgpack_writer_new();
+		auto writer = msgpack_writer_new(allocator);
 		mn_defer { msgpack_writer_free(writer); };
 
 		if (auto err = msgpack(writer, value)) return err;
@@ -1192,16 +1273,16 @@ namespace mn
 
 	template<typename T>
 	inline static Err
-	msgpack_decode(Block bytes, T& value)
+	msgpack_decode(Block bytes, T& value, Allocator allocator = nullptr)
 	{
 		auto stream = block_stream_wrap(bytes);
-		auto reader = msgpack_reader_new(&stream);
+		auto reader = msgpack_reader_new(&stream, allocator);
 		return msgpack(reader, value);
 	}
 
 	template<typename T>
 	inline static Err
-	msgpack_decode(Str bytes, T& value)
+	msgpack_decode(Str bytes, T& value, Allocator allocator = nullptr)
 	{
 		return msgpack_decode(block_from(bytes), value);
 	}

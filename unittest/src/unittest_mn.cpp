@@ -1709,7 +1709,7 @@ template<typename T>
 inline static mn::Str
 msgpack_encode_test(const T& v)
 {
-	auto [bytes_, err] = mn::msgpack_encode(v);
+	auto [bytes_, err] = mn::msgpack_encode(v, mn::memory::tmp());
 	REQUIRE(!err);
 	auto bytes = bytes_;
 	mn_defer { mn::str_free(bytes); };
@@ -1733,7 +1733,7 @@ msgpack_decode_test(std::initializer_list<uint8_t> bytes)
 	auto block = mn::Block{(void*)bytes.begin(), bytes.size()};
 
 	T v{};
-	auto err = mn::msgpack_decode(block, v);
+	auto err = mn::msgpack_decode(block, v, mn::memory::tmp());
 	REQUIRE(!err);
 	return v;
 }
@@ -1757,9 +1757,6 @@ TEST_CASE("msgpack: binary")
 {
 	uint8_t buffer[] = {0, 255};
 	CHECK(msgpack_encode_test(mn::Block{buffer, sizeof(buffer)}) == "[c4, 2, 0, ff]");
-
-	mn::allocator_push(mn::memory::tmp());
-	mn_defer { mn::allocator_pop(); };
 
 	auto out_buffer = msgpack_decode_test<mn::Block>({0xc4, 0x2, 0x0, 0xff});
 	CHECK(out_buffer.size == 2);
@@ -1841,9 +1838,6 @@ TEST_CASE("msgpack: string")
 	CHECK(msgpack_encode_test(u8"❤") == "[a3, e2, 9d, a4]");
 	CHECK(msgpack_encode_test(u8"🍺") == "[a4, f0, 9f, 8d, ba]");
 
-	mn::allocator_push(mn::memory::tmp());
-	mn_defer { mn::allocator_pop(); };
-
 	CHECK(msgpack_decode_test<mn::Str>({0xa0}) == "");
 	CHECK(msgpack_decode_test<mn::Str>({0xa1, 0x61}) == "a");
 	CHECK(msgpack_decode_test<mn::Str>({0xaa, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30}) == "1234567890");
@@ -1868,9 +1862,6 @@ TEST_CASE("msgpack: array")
 	CHECK(msgpack_encode_test(simple) == "[91, 1]");
 	CHECK(msgpack_encode_test(medium) == "[9f, 1, 2, 3, 4, 5, 6, 7, 8, 9, a, b, c, d, e, f]");
 	CHECK(msgpack_encode_test(big) == "[dc, 0, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, a, b, c, d, e, f, 10]");
-
-	mn::allocator_push(mn::memory::tmp());
-	mn_defer { mn::allocator_pop(); };
 
 	auto out_empty = msgpack_decode_test<mn::Buf<int>>({0x90});
 	CHECK(out_empty.count == 0);
@@ -1899,9 +1890,6 @@ TEST_CASE("msgpack: map")
 	CHECK(msgpack_encode_test(empty) == "[80]");
 	CHECK(msgpack_encode_test(simple) == "[81, a1, 61, 1]");
 
-	mn::allocator_push(mn::memory::tmp());
-	mn_defer { mn::allocator_pop(); };
-
 	auto out_empty = msgpack_decode_test<mn::Map<mn::Str, int>>({0x80});
 	CHECK(out_empty.count == 0);
 
@@ -1915,6 +1903,7 @@ struct Person
 {
 	mn::Str name;
 	int age;
+	const char* desc;
 
 	inline bool
 	operator==(const Person& other)
@@ -1930,17 +1919,15 @@ msgpack(TArchive& self, const Person& p)
 	return mn::msgpack_struct(self, {
 		{"name", &p.name},
 		{"age", &p.age},
+		{"desc", &p.desc},
 	});
 }
 
 TEST_CASE("msgpack: struct")
 {
-	Person mostafa{"Mostafa"_mnstr, 29};
-	CHECK(msgpack_encode_test(mostafa) == "[82, a4, 6e, 61, 6d, 65, a7, 4d, 6f, 73, 74, 61, 66, 61, a3, 61, 67, 65, 1d]");
+	Person mostafa{"Mostafa"_mnstr, 29, "human"};
+	CHECK(msgpack_encode_test(mostafa) == "[83, a4, 6e, 61, 6d, 65, a7, 4d, 6f, 73, 74, 61, 66, 61, a3, 61, 67, 65, 1d, a4, 64, 65, 73, 63, a5, 68, 75, 6d, 61, 6e]");
 
-	mn::allocator_push(mn::memory::tmp());
-	mn_defer { mn::allocator_pop(); };
-
-	auto out_mostafa = msgpack_decode_test<Person>({0x82, 0xa4, 0x6e, 0x61, 0x6d, 0x65, 0xa7, 0x4d, 0x6f, 0x73, 0x74, 0x61, 0x66, 0x61, 0xa3, 0x61, 0x67, 0x65, 0x1d});
+	auto out_mostafa = msgpack_decode_test<Person>({0x83, 0xa4, 0x6e, 0x61, 0x6d, 0x65, 0xa7, 0x4d, 0x6f, 0x73, 0x74, 0x61, 0x66, 0x61, 0xa3, 0x61, 0x67, 0x65, 0x1d, 0xa4, 0x64, 0x65, 0x73, 0x63, 0xa5, 0x68, 0x75, 0x6d, 0x61, 0x6e});
 	CHECK(out_mostafa == mostafa);
 }
