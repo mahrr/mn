@@ -655,35 +655,12 @@ namespace mn
 		return {};
 	}
 
-	inline static Msgpack_Reader
-	msgpack_reader_new(Stream stream, Allocator allocator = nullptr)
-	{
-		Msgpack_Reader self{};
-		self.stream = stream;
-		self.allocator = allocator;
-		return self;
-	}
+	inline static Err
+	_msgpack_reader_read_int(Msgpack_Reader& self, uint8_t prefix, int64_t& res);
 
 	inline static Err
-	msgpack(Msgpack_Reader& self, bool& res)
+	_msgpack_reader_read_uint(Msgpack_Reader& self, uint8_t prefix, uint64_t& res)
 	{
-		uint8_t rep{};
-		if (auto err = _msgpack_pop_uint8(self, rep)) return err;
-		if (rep == 0xc3)
-			res = true;
-		else if (rep == 0xc2)
-			res = false;
-		else
-			return errf("invalid bool value {}", rep);
-		return {};
-	}
-
-	inline static Err
-	msgpack(Msgpack_Reader& self, uint64_t& res)
-	{
-		uint8_t prefix{};
-		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
-
 		if (prefix <= 0x7f)
 		{
 			res = prefix;
@@ -714,9 +691,98 @@ namespace mn
 		}
 		else
 		{
-			return errf("invalid uint value '{}'", prefix);
+			int64_t signed_res{};
+			if (_msgpack_reader_read_int(self, prefix, signed_res) == false)
+			{
+				if (signed_res < 0)
+					return errf("you were expecting an unsigned integer but reader found a signed one that is negative, {}", signed_res);
+				res = signed_res;
+			}
+			else
+			{
+				return errf("invalid uint value '{}'", prefix);
+			}
 		}
 		return {};
+	}
+
+	inline static Err
+	_msgpack_reader_read_int(Msgpack_Reader& self, uint8_t prefix, int64_t& res)
+	{
+		if (prefix <= 0x7f || prefix >= 0xE0)
+		{
+			res = *(int8_t*)&prefix;
+		}
+		else if (prefix == 0xd0)
+		{
+			int8_t value{};
+			if (auto err = _msgpack_pop_int8(self, value)) return err;
+			res = value;
+		}
+		else if (prefix == 0xd1)
+		{
+			int16_t value{};
+			if (auto err = _msgpack_pop_int16(self, value)) return err;
+			res = value;
+		}
+		else if (prefix == 0xd2)
+		{
+			int32_t value{};
+			if (auto err = _msgpack_pop_int32(self, value)) return err;
+			res = value;
+		}
+		else if (prefix == 0xd3)
+		{
+			int64_t value{};
+			if (auto err = _msgpack_pop_int64(self, value)) return err;
+			res = value;
+		}
+		else
+		{
+			uint64_t unsigned_res{};
+			if (_msgpack_reader_read_uint(self, prefix, unsigned_res) == false)
+			{
+				if (unsigned_res > INT64_MAX)
+					return errf("you were expecting a signed integer but reader found an unsigned one that overflows the signed range, {}", unsigned_res);
+				res = unsigned_res;
+			}
+			else
+			{
+				return errf("invalid int value '{}'", prefix);
+			}
+		}
+		return {};
+	}
+
+	inline static Msgpack_Reader
+	msgpack_reader_new(Stream stream, Allocator allocator = nullptr)
+	{
+		Msgpack_Reader self{};
+		self.stream = stream;
+		self.allocator = allocator;
+		return self;
+	}
+
+	inline static Err
+	msgpack(Msgpack_Reader& self, bool& res)
+	{
+		uint8_t rep{};
+		if (auto err = _msgpack_pop_uint8(self, rep)) return err;
+		if (rep == 0xc3)
+			res = true;
+		else if (rep == 0xc2)
+			res = false;
+		else
+			return errf("invalid bool value {}", rep);
+		return {};
+	}
+
+	inline static Err
+	msgpack(Msgpack_Reader& self, uint64_t& res)
+	{
+		uint8_t prefix{};
+		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
+		return _msgpack_reader_read_uint(self, prefix, res);
 	}
 
 	inline static Err
@@ -757,40 +823,7 @@ namespace mn
 	{
 		uint8_t prefix{};
 		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
-
-		if (prefix <= 0x7f || prefix >= 0xE0)
-		{
-			res = *(int8_t*)&prefix;
-		}
-		else if (prefix == 0xd0)
-		{
-			int8_t value{};
-			if (auto err = _msgpack_pop_int8(self, value)) return err;
-			res = value;
-		}
-		else if (prefix == 0xd1)
-		{
-			int16_t value{};
-			if (auto err = _msgpack_pop_int16(self, value)) return err;
-			res = value;
-		}
-		else if (prefix == 0xd2)
-		{
-			int32_t value{};
-			if (auto err = _msgpack_pop_int32(self, value)) return err;
-			res = value;
-		}
-		else if (prefix == 0xd3)
-		{
-			int64_t value{};
-			if (auto err = _msgpack_pop_int64(self, value)) return err;
-			res = value;
-		}
-		else
-		{
-			return errf("invalid int value '{}'", prefix);
-		}
-		return {};
+		return _msgpack_reader_read_int(self, prefix, res);
 	}
 
 	inline static Err

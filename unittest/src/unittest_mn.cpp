@@ -1797,6 +1797,8 @@ TEST_CASE("msgpack: numbers")
 	CHECK(msgpack_decode_test<uint64_t>({0x0}) == 0);
 	CHECK(msgpack_decode_test<uint64_t>({0xcc, 0xff}) == 255);
 	CHECK(msgpack_decode_test<uint64_t>({0xcd, 0x1, 0x0}) == 256);
+	// some msgpack encoders mix signed and unsigned for positive numbers, so we must make sure that readers are not strict about it
+	CHECK(msgpack_decode_test<int64_t>({0xcd, 0x1, 0x0}) == 256);
 	CHECK(msgpack_decode_test<uint64_t>({0xcd, 0xff, 0xff}) == 65535);
 	CHECK(msgpack_decode_test<uint64_t>({0xce, 0x0, 0x1, 0x0, 0x0}) == 65536);
 	CHECK(msgpack_decode_test<uint64_t>({0xce, 0xff, 0xff, 0xff, 0xff}) == 4294967295);
