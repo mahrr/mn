@@ -230,6 +230,9 @@ namespace mn
 	inline static void
 	buf_resize(Buf<T>& self, size_t new_size)
 	{
+		if (self.count == new_size)
+			return;
+
 		if(new_size > self.count)
 		{
 			buf_reserve(self, new_size - self.count);

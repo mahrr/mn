@@ -152,6 +152,14 @@ TEST_CASE("buf pop")
 	mn::buf_free(arr);
 }
 
+TEST_CASE("buf resize")
+{
+	mn::Buf<int> arr{};
+	mn::buf_resize(arr, 0);
+	mn::buf_resize(arr, 1);
+	mn::buf_free(arr);
+}
+
 TEST_CASE("str push")
 {
 	auto str = mn::str_new();
