@@ -151,7 +151,7 @@ namespace mn
 		if(available_size > 0)
 		{
 			auto [size, err] = memory_stream_read(&self->buffer, data);
-			if (err != IO_ERROR_NONE)
+			if (err == IO_ERROR_NONE)
 				read_size += size;
 			request_size -= read_size;
 		}
@@ -166,7 +166,7 @@ namespace mn
 		if(self->stream)
 		{
 			auto [size, err] = stream_read(self->stream, data + read_size);
-			if (err != IO_ERROR_NONE)
+			if (err == IO_ERROR_NONE)
 				read_size += size;
 			read_size += size;
 		}

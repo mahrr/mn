@@ -441,7 +441,10 @@ namespace mn
 	inline static size_t
 	read_bin(Stream stream, T& value)
 	{
-		return stream_read(stream, block_from(value));
+		auto [size, err] = stream_read(stream, block_from(value));
+		if (err)
+			return 0;
+		return size;
 	}
 
 	template<typename T>
@@ -454,7 +457,10 @@ namespace mn
 	inline static Result<size_t, IO_ERROR>
 	read_bin(Stream stream, Block value)
 	{
-		return stream_read(stream, value);
+		auto [size, err] = stream_read(stream, value);
+		if (err)
+			return 0;
+		return size;
 	}
 
 	inline static size_t
