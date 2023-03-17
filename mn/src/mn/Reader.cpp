@@ -168,7 +168,6 @@ namespace mn
 			auto [size, err] = stream_read(self->stream, data + read_size);
 			if (err == IO_ERROR_NONE)
 				read_size += size;
-			read_size += size;
 		}
 
 		self->consumed_bytes += read_size;
