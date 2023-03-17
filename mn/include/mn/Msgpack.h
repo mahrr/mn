@@ -1131,13 +1131,13 @@ namespace mn
 		{
 			map_count = prefix & 0xf;
 		}
-		else if (prefix == 0xdc)
+		else if (prefix == 0xde)
 		{
 			uint16_t count{};
 			if (auto err = _msgpack_pop_uint16(self, count)) return err;
 			map_count = count;
 		}
-		else if (prefix == 0xdd)
+		else if (prefix == 0xdf)
 		{
 			uint32_t count{};
 			if (auto err = _msgpack_pop_uint32(self, count)) return err;
@@ -1213,15 +1213,15 @@ namespace mn
 		{
 			uint8_t prefix = 0xde;
 			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
-			uint8_t count = (uint8_t)fields_count;
-			if (auto err = _msgpack_push_uint8(self, count)) return err;
+			uint16_t count = (uint16_t)fields_count;
+			if (auto err = _msgpack_push_uint16(self, count)) return err;
 		}
 		else if (fields_count <= UINT32_MAX)
 		{
 			uint8_t prefix = 0xdf;
 			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
-			uint8_t count = (uint8_t)fields_count;
-			if (auto err = _msgpack_push_uint8(self, count)) return err;
+			uint32_t count = (uint32_t)fields_count;
+			if (auto err = _msgpack_push_uint32(self, count)) return err;
 		}
 		else
 		{
@@ -1248,13 +1248,13 @@ namespace mn
 		{
 			fields_count = prefix & 0xf;
 		}
-		else if (prefix == 0xdc)
+		else if (prefix == 0xde)
 		{
 			uint16_t count{};
 			if (auto err = _msgpack_pop_uint16(self, count)) return err;
 			fields_count = count;
 		}
-		else if (prefix == 0xdd)
+		else if (prefix == 0xdf)
 		{
 			uint32_t count{};
 			if (auto err = _msgpack_pop_uint32(self, count)) return err;
