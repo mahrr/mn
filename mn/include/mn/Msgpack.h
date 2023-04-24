@@ -380,37 +380,43 @@ namespace mn
 	}
 
 	inline static Err
-	msgpack(Msgpack_Writer& self, Block v)
+	msgpack(Msgpack_Writer& self, const void* ptr, size_t size)
 	{
-		if (v.size <= UINT8_MAX)
+		if (size <= UINT8_MAX)
 		{
 			uint8_t prefix = 0xc4;
 			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
-			uint8_t count = (uint8_t)v.size;
+			uint8_t count = (uint8_t)size;
 			if (auto err = _msgpack_push_uint8(self, count)) return err;
-			return _msgpack_push(self, v);
+			return _msgpack_push(self, Block{(void*)ptr, size});
 		}
-		else if (v.size <= UINT16_MAX)
+		else if (size <= UINT16_MAX)
 		{
 			uint8_t prefix = 0xc5;
 			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
-			uint16_t count = (uint16_t)v.size;
+			uint16_t count = (uint16_t)size;
 			if (auto err = _msgpack_push_uint16(self, count)) return err;
-			return _msgpack_push(self, v);
+			return _msgpack_push(self, Block{(void*)ptr, size});
 		}
-		else if (v.size <= UINT32_MAX)
+		else if (size <= UINT32_MAX)
 		{
 			uint8_t prefix = 0xc6;
 			if (auto err = _msgpack_push_uint8(self, prefix)) return err;
-			uint32_t count = (uint32_t)v.size;
+			uint32_t count = (uint32_t)size;
 			if (auto err = _msgpack_push_uint32(self, count)) return err;
-			return _msgpack_push(self, v);
+			return _msgpack_push(self, Block{(void*)ptr, size});
 		}
 		else
 		{
 			mn_unreachable();
 			return errf("binary with count larger than 32 bit is not supported");
 		}
+	}
+
+	inline static Err
+	msgpack(Msgpack_Writer& self, Block v)
+	{
+		return msgpack(self, v.ptr, v.size);
 	}
 
 	template<typename T>
@@ -954,33 +960,34 @@ namespace mn
 	}
 
 	inline static Err
-	msgpack(Msgpack_Reader& self, Block& res)
+	msgpack(Msgpack_Reader& self, void*& ptr, size_t& size)
 	{
 		auto allocator = allocator_top();
 		if (self.allocator)
 			allocator = self.allocator;
-
 		uint8_t prefix{};
 		if (auto err = _msgpack_pop_uint8(self, prefix)) return err;
-
 		if (prefix == 0xc4)
 		{
 			uint8_t count{};
 			if (auto err = _msgpack_pop_uint8(self, count)) return err;
 
-			if (block_is_empty(res))
+			if (ptr == nullptr)
 			{
 				auto value = alloc_from(allocator, count, alignof(char));
 				mn_defer { free_from(allocator, value); };
 
 				if (auto err = _msgpack_pop(self, value)) return err;
-				res = xchg(value, {});
+
+				ptr = value.ptr;
+				size = value.size;
+				value = {};
 			}
 			else
 			{
-				if (res.size != count)
-					return errf("mistmatched binary block size, expected {}, provided {}", count, res.size);
-				if (auto err = _msgpack_pop(self, res)) return err;
+				if (size != count)
+					return errf("mistmatched binary block size, expected {}, provided {}", count, size);
+				if (auto err = _msgpack_pop(self, Block{ptr, size})) return err;
 			}
 			return{};
 		}
@@ -989,19 +996,21 @@ namespace mn
 			uint16_t count{};
 			if (auto err = _msgpack_pop_uint16(self, count)) return err;
 
-			if (block_is_empty(res))
+			if (ptr == nullptr)
 			{
 				auto value = alloc_from(allocator, count, alignof(char));
 				mn_defer { free_from(allocator, value); };
 
 				if (auto err = _msgpack_pop(self, value)) return err;
-				res = xchg(value, {});
+				ptr = value.ptr;
+				size = value.size;
+				value = {};
 			}
 			else
 			{
-				if (res.size != count)
-					return errf("mistmatched binary block size, expected {}, provided {}", count, res.size);
-				if (auto err = _msgpack_pop(self, res)) return err;
+				if (size != count)
+					return errf("mistmatched binary block size, expected {}, provided {}", count, size);
+				if (auto err = _msgpack_pop(self, Block{ptr, size})) return err;
 			}
 			return{};
 		}
@@ -1010,19 +1019,21 @@ namespace mn
 			uint32_t count{};
 			if (auto err = _msgpack_pop_uint32(self, count)) return err;
 
-			if (block_is_empty(res))
+			if (ptr == nullptr)
 			{
 				auto value = alloc_from(allocator, count, alignof(char));
 				mn_defer { free_from(allocator, value); };
 
 				if (auto err = _msgpack_pop(self, value)) return err;
-				res = xchg(value, {});
+				ptr = value.ptr;
+				size = value.size;
+				value = {};
 			}
 			else
 			{
-				if (res.size != count)
-					return errf("mistmatched binary block size, expected {}, provided {}", count, res.size);
-				if (auto err = _msgpack_pop(self, res)) return err;
+				if (size != count)
+					return errf("mistmatched binary block size, expected {}, provided {}", count, size);
+				if (auto err = _msgpack_pop(self, Block{ptr, size})) return err;
 			}
 			return{};
 		}
@@ -1030,6 +1041,12 @@ namespace mn
 		{
 			return errf("invalid binary prefix '{}'", prefix);
 		}
+	}
+
+	inline static Err
+	msgpack(Msgpack_Reader& self, Block& res)
+	{
+		return msgpack(self, res.ptr, res.size);
 	}
 
 	template<typename T>
@@ -1317,6 +1334,6 @@ namespace mn
 	inline static Err
 	msgpack_decode(Str bytes, T& value, Allocator allocator = nullptr)
 	{
-		return msgpack_decode(block_from(bytes), value);
+		return msgpack_decode(block_from(bytes), value, allocator);
 	}
 }
