@@ -294,7 +294,7 @@ namespace mn::ipc
 		struct sigaction act{};
 		act.sa_handler = SIG_IGN;
 
-		auto sigaction_res = sigaction(SIGPIPE, &act, &old_act);
+		[[maybe_unused]] auto sigaction_res = sigaction(SIGPIPE, &act, &old_act);
 		mn_assert(sigaction_res != -1);
 
 		auto res = ::write(self->linux_domain_socket, data.ptr, data.size);
