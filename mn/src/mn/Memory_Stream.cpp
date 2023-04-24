@@ -160,7 +160,10 @@ namespace mn
 		if(self->str.count - self->cursor < size)
 			memory_stream_reserve(self, size);
 
-		auto [read_size, _] = stream_read(stream, Block { self->str.ptr + self->cursor, size });
+		auto [read_size, read_err] = stream_copy(Block { self->str.ptr + self->cursor, size }, stream);
+		if (read_err != IO_ERROR_NONE)
+			return 0;
+
 		self->str.count += read_size;
 		self->cursor += read_size;
 		return read_size;
