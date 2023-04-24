@@ -26,6 +26,7 @@
 #include <mn/Regex.h>
 #include <mn/Log.h>
 #include <mn/Msgpack.h>
+#include <mn/IPC.h>
 
 #include <chrono>
 #include <iostream>
@@ -1940,4 +1941,65 @@ TEST_CASE("msgpack: struct")
 
 	auto out_mostafa = msgpack_decode_test<Person>({0x83, 0xa4, 0x6e, 0x61, 0x6d, 0x65, 0xa7, 0x4d, 0x6f, 0x73, 0x74, 0x61, 0x66, 0x61, 0xa3, 0x61, 0x67, 0x65, 0x1d, 0xa4, 0x64, 0x65, 0x73, 0x63, 0xa5, 0x68, 0x75, 0x6d, 0x61, 0x6e});
 	CHECK(out_mostafa == mostafa);
+}
+
+TEST_CASE("Local_Socket read/write")
+{
+	auto fabric = mn::fabric_new({});
+	mn_defer{mn::fabric_free(fabric);};
+
+	auto socket = mn::ipc::local_socket_new("socket");
+	CHECK(socket != nullptr);
+	CHECK(mn::ipc::local_socket_listen(socket));
+
+	mn::ipc::Local_Socket server = nullptr;
+	mn::Auto_Waitgroup wg;
+
+	wg.add(1);
+	mn::go(fabric, [&]() {
+		server = mn::ipc::local_socket_accept(socket, mn::INFINITE_TIMEOUT);
+		mn::ipc::local_socket_free(socket);
+		wg.done();
+	});
+
+	auto client = mn::ipc::local_socket_connect("socket");
+	wg.wait();
+
+	{
+		uint8_t data = 64;
+		auto [write_bytes, write_err] = mn::ipc::local_socket_write(server, mn::block_from(data), mn::INFINITE_TIMEOUT);
+		CHECK(write_err == mn::IO_ERROR_NONE);
+		CHECK(write_bytes == 1);
+	}
+
+	{
+		uint8_t data = 0;
+		auto [read_bytes, read_err] = mn::ipc::local_socket_read(client, mn::block_from(data), mn::INFINITE_TIMEOUT);
+		CHECK(read_err == mn::IO_ERROR_NONE);
+		CHECK(read_bytes == 1);
+		CHECK(data == 64);
+	}
+
+	{
+		uint8_t data = 0;
+		auto [read_bytes, read_err] = mn::ipc::local_socket_read(client, mn::block_from(data), mn::Timeout{100});
+		CHECK(read_err == mn::IO_ERROR_TIMEOUT);
+	}
+
+	mn::ipc::local_socket_free(client);
+
+	{
+		uint8_t data = 64;
+		auto [_, write_err] = mn::ipc::local_socket_write(server, mn::block_from(data), mn::INFINITE_TIMEOUT);
+		CHECK(write_err == mn::IO_ERROR_CLOSED);
+	}
+
+	{
+		uint8_t data = 0;
+		auto [_, read_err] = mn::ipc::local_socket_read(server, mn::block_from(data), mn::INFINITE_TIMEOUT);
+		CHECK(read_err == mn::IO_ERROR_CLOSED);
+	}
+
+	mn::ipc::local_socket_disconnect(server);
+	mn::ipc::local_socket_free(server);
 }

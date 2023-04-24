@@ -25,6 +25,7 @@ namespace mn::ipc
 		case ERROR_SHARING_VIOLATION:
 			return IO_ERROR_PERMISSION_DENIED;
 		case ERROR_NO_DATA:
+		case ERROR_BROKEN_PIPE:
 			return IO_ERROR_CLOSED;
 		case ERROR_TIMEOUT:
 		case WAIT_TIMEOUT:
@@ -181,20 +182,23 @@ namespace mn::ipc
 
 			auto connected = ConnectNamedPipe((HANDLE)self->winos_named_pipe, &overlapped);
 			auto last_error = GetLastError();
-			if (connected == FALSE && last_error != ERROR_IO_PENDING && last_error != ERROR_PIPE_CONNECTED)
-				return nullptr;
+			if (connected == FALSE && last_error != ERROR_PIPE_CONNECTED)
+			{
+				if (last_error != ERROR_IO_PENDING)
+					return nullptr;
 
-			DWORD milliseconds = 0;
-			if (timeout == INFINITE_TIMEOUT)
-				milliseconds = INFINITE;
-			else if (timeout == NO_TIMEOUT)
-				milliseconds = 0;
-			else
-				milliseconds = DWORD(timeout.milliseconds);
+				DWORD milliseconds = 0;
+				if (timeout == INFINITE_TIMEOUT)
+					milliseconds = INFINITE;
+				else if (timeout == NO_TIMEOUT)
+					milliseconds = 0;
+				else
+					milliseconds = DWORD(timeout.milliseconds);
 
-			auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
-			if (wakeup != WAIT_OBJECT_0)
-				return nullptr;
+				auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
+				if (wakeup != WAIT_OBJECT_0)
+					return nullptr;
+			}
 		}
 
 		// accept the connection
@@ -227,13 +231,20 @@ namespace mn::ipc
 		OVERLAPPED overlapped{};
 		overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 		worker_block_ahead();
-		ReadFile(
+		mn_defer { worker_block_clear(); };
+
+		auto done = ReadFile(
 			(HANDLE)self->winos_named_pipe,
 			data.ptr,
 			DWORD(data.size),
 			&bytes_read,
 			&overlapped
 		);
+
+		if (done)
+			return bytes_read;
+		else if (GetLastError() != ERROR_IO_PENDING)
+			return _get_last_error();
 
 		DWORD milliseconds = 0;
 		if (timeout == INFINITE_TIMEOUT)
@@ -243,7 +254,7 @@ namespace mn::ipc
 		else
 			milliseconds = DWORD(timeout.milliseconds);
 		auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
-		worker_block_clear();
+
 		if (wakeup == WAIT_TIMEOUT)
 		{
 			CancelIo(self->winos_named_pipe);
@@ -260,13 +271,20 @@ namespace mn::ipc
 		OVERLAPPED overlapped{};
 		overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 		worker_block_ahead();
-		WriteFile(
+		mn_defer { worker_block_clear(); };
+
+		auto done = WriteFile(
 			(HANDLE)self->winos_named_pipe,
 			data.ptr,
 			DWORD(data.size),
 			&bytes_written,
 			&overlapped
 		);
+
+		if (done)
+			return bytes_written;
+		else if (GetLastError() != ERROR_IO_PENDING)
+			return _get_last_error();
 
 		DWORD milliseconds = 0;
 		if (timeout == INFINITE_TIMEOUT)
@@ -276,7 +294,7 @@ namespace mn::ipc
 		else
 			milliseconds = DWORD(timeout.milliseconds);
 		auto wakeup = WaitForSingleObject(overlapped.hEvent, milliseconds);
-		worker_block_clear();
+
 		if (wakeup == WAIT_TIMEOUT)
 		{
 			CancelIo(self->winos_named_pipe);

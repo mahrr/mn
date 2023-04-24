@@ -27,6 +27,7 @@ namespace mn
 		case ERROR_SHARING_VIOLATION:
 			return IO_ERROR_PERMISSION_DENIED;
 		case ERROR_NO_DATA:
+		case ERROR_BROKEN_PIPE:
 			return IO_ERROR_CLOSED;
 		case ERROR_TIMEOUT:
 		case WAIT_TIMEOUT:

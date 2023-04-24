@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <signal.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -44,6 +45,9 @@ namespace mn::ipc
 		switch(error)
 		{
 		case ECONNREFUSED:
+		case EBADF:
+		case ENOTCONN:
+		case EPIPE:
 			return IO_ERROR_CLOSED;
 		case EFAULT:
 		case EINVAL:
@@ -239,14 +243,24 @@ namespace mn::ipc
 		else
 			milliseconds = int(timeout.milliseconds);
 
-		ssize_t res = 0;
 		worker_block_ahead();
+		mn_defer { worker_block_clear(); };
+
 		int ready = poll(&pfd_read, 1, milliseconds);
-		if(ready > 0)
-			res = ::read(self->linux_domain_socket, data.ptr, data.size);
-		worker_block_clear();
+		if (ready < 0)
+			return _ipc_error_from_os(errno);
+
+		if (ready == 0)
+			return IO_ERROR_TIMEOUT;
+
+		auto res = ::read(self->linux_domain_socket, data.ptr, data.size);
+
 		if(res == -1)
 			return _ipc_error_from_os(errno);
+
+		if (res == 0 && data.size != 0)
+			return IO_ERROR_CLOSED;
+
 		return res;
 	}
 
@@ -265,14 +279,34 @@ namespace mn::ipc
 		else
 			milliseconds = int(timeout.milliseconds);
 
-		ssize_t res = 0;
+
 		worker_block_ahead();
+		mn_defer { worker_block_clear(); };
+
 		int ready = poll(&pfd_write, 1, milliseconds);
-		if(ready > 0)
-			res = ::write(self->linux_domain_socket, data.ptr, data.size);
-		worker_block_clear();
+		if (ready < 0)
+			return _ipc_error_from_os(errno);
+
+		if (ready == 0)
+			return _ipc_error_from_os(errno);
+
+		struct sigaction old_act{};
+		struct sigaction act{};
+		act.sa_handler = SIG_IGN;
+
+		auto sigaction_res = sigaction(SIGPIPE, &act, &old_act);
+		mn_assert(sigaction_res != -1);
+
+		auto res = ::write(self->linux_domain_socket, data.ptr, data.size);
+
+		sigaction_res = sigaction(SIGPIPE, &old_act, nullptr);
+		mn_assert(sigaction_res != -1);
+
+		mn_assert(res != 0 || data.size == 0);
+
 		if(res == -1)
 			return _ipc_error_from_os(errno);
+
 		return res;
 	}
 
